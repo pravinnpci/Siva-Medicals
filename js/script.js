@@ -1,70 +1,66 @@
 // ========================================
-// SIVA MEDICALS - JavaScript Functions
-// ========================================
-
-// ========================================
 // 1. DARK MODE TOGGLE
 // ========================================
 
-function enableDarkMode() {
-  document.documentElement.style.colorScheme = 'dark';
-  document.body.classList.add("dark-mode");
-  const darkToggles = document.querySelectorAll("#darkToggle");
-  darkToggles.forEach(toggle => {
-    toggle.innerHTML = '<i class="fas fa-sun"></i> Mode';
-  });
-  localStorage.setItem("darkMode", "enabled");
-}
-
-function disableDarkMode() {
-  document.documentElement.style.colorScheme = 'light';
-  document.body.classList.remove("dark-mode");
-  const darkToggles = document.querySelectorAll("#darkToggle");
-  darkToggles.forEach(toggle => {
-    toggle.innerHTML = '<i class="fas fa-moon"></i> Mode';
-  });
-  localStorage.setItem("darkMode", "disabled");
-}
-
+// Initialize dark mode on page load
 function initDarkMode() {
-  const savedMode = localStorage.getItem("darkMode");
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  
-  if (savedMode === "enabled" || (savedMode === null && prefersDark)) {
-    enableDarkMode();
-  } else {
-    disableDarkMode();
+  const darkModeEnabled = localStorage.getItem('darkMode') === 'true';
+  if (darkModeEnabled) {
+    document.body.classList.add('dark-mode');
+    updateDarkModeButtons();
   }
 }
 
-// Setup dark mode toggle with proper event handling
-function setupDarkMode() {
-  initDarkMode();
+// Toggle dark mode
+function toggleDarkMode() {
+  document.body.classList.toggle('dark-mode');
+  const isDarkMode = document.body.classList.contains('dark-mode');
+  localStorage.setItem('darkMode', isDarkMode ? 'true' : 'false');
+  updateDarkModeButtons();
+}
+
+// Update all dark mode buttons
+function updateDarkModeButtons() {
+  const isDarkMode = document.body.classList.contains('dark-mode');
+  const darkToggles = document.querySelectorAll('#darkToggle');
   
-  const darkToggles = document.querySelectorAll("#darkToggle");
   darkToggles.forEach(toggle => {
-    toggle.addEventListener("click", function(e) {
+    if (isDarkMode) {
+      toggle.innerHTML = '<i class="fas fa-sun"></i> Mode';
+    } else {
+      toggle.innerHTML = '<i class="fas fa-moon"></i> Mode';
+    }
+  });
+}
+
+// Setup dark mode toggle listeners
+function setupDarkModeListeners() {
+  const darkToggles = document.querySelectorAll('#darkToggle');
+  darkToggles.forEach(toggle => {
+    toggle.addEventListener('click', function(e) {
       e.preventDefault();
       e.stopPropagation();
-      
-      if (document.body.classList.contains("dark-mode")) {
-        disableDarkMode();
-      } else {
-        enableDarkMode();
-      }
+      toggleDarkMode();
     });
   });
 }
 
-// Run on DOM ready and immediately
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", setupDarkMode);
+// Initialize on DOMContentLoaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    initDarkMode();
+    setupDarkModeListeners();
+  });
 } else {
-  setupDarkMode();
+  initDarkMode();
+  setupDarkModeListeners();
 }
 
-// Also setup dark mode on window load
-window.addEventListener("load", setupDarkMode);
+// Also initialize on window load
+window.addEventListener('load', function() {
+  initDarkMode();
+  setupDarkModeListeners();
+});
 
 // ========================================
 // 1.5 REAL-TIME FORM VALIDATION
