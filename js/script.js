@@ -7,20 +7,22 @@
 // ========================================
 
 function enableDarkMode() {
+  document.documentElement.style.colorScheme = 'dark';
   document.body.classList.add("dark-mode");
-  const darkToggle = document.getElementById("darkToggle");
-  if (darkToggle) {
-    darkToggle.innerHTML = '<i class="fas fa-sun"></i> Mode';
-  }
+  const darkToggles = document.querySelectorAll("#darkToggle");
+  darkToggles.forEach(toggle => {
+    toggle.innerHTML = '<i class="fas fa-sun"></i> Mode';
+  });
   localStorage.setItem("darkMode", "enabled");
 }
 
 function disableDarkMode() {
+  document.documentElement.style.colorScheme = 'light';
   document.body.classList.remove("dark-mode");
-  const darkToggle = document.getElementById("darkToggle");
-  if (darkToggle) {
-    darkToggle.innerHTML = '<i class="fas fa-moon"></i> Mode';
-  }
+  const darkToggles = document.querySelectorAll("#darkToggle");
+  darkToggles.forEach(toggle => {
+    toggle.innerHTML = '<i class="fas fa-moon"></i> Mode';
+  });
   localStorage.setItem("darkMode", "disabled");
 }
 
@@ -30,6 +32,8 @@ function initDarkMode() {
   
   if (savedMode === "enabled" || (savedMode === null && prefersDark)) {
     enableDarkMode();
+  } else {
+    disableDarkMode();
   }
 }
 
@@ -37,9 +41,9 @@ function initDarkMode() {
 function setupDarkMode() {
   initDarkMode();
   
-  const darkToggle = document.getElementById("darkToggle");
-  if (darkToggle) {
-    darkToggle.addEventListener("click", function(e) {
+  const darkToggles = document.querySelectorAll("#darkToggle");
+  darkToggles.forEach(toggle => {
+    toggle.addEventListener("click", function(e) {
       e.preventDefault();
       e.stopPropagation();
       
@@ -49,14 +53,18 @@ function setupDarkMode() {
         enableDarkMode();
       }
     });
-  }
+  });
 }
 
-// Run on DOM ready
-document.addEventListener("DOMContentLoaded", setupDarkMode);
-if (document.readyState !== "loading") {
+// Run on DOM ready and immediately
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", setupDarkMode);
+} else {
   setupDarkMode();
 }
+
+// Also setup dark mode on window load
+window.addEventListener("load", setupDarkMode);
 
 // ========================================
 // 1.5 REAL-TIME FORM VALIDATION

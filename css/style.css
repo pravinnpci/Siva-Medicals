@@ -386,6 +386,7 @@ body {
 .section {
   padding: 60px 0;
   transition: all 0.3s ease;
+  background: white;
 }
 
 .section h2 {
@@ -396,6 +397,10 @@ body {
   position: relative;
   text-align: center;
   letter-spacing: 1px;
+}
+
+.dark-mode .section {
+  background: var(--dark-bg);
 }
 
 .dark-mode .section h2 {
@@ -415,12 +420,15 @@ body {
   background: var(--card-bg);
 }
 
-/* ========== CARDS ========== */
+.dark-mode .bg-light {
+  background: #1a1a1a !important;
+}
 
 .card {
   border: none;
   border-radius: 8px;
   background: white;
+  color: #333;
   overflow: hidden;
   transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -460,7 +468,7 @@ body {
 .card p {
   font-size: 0.95rem;
   line-height: 1.6;
-  color: #555;
+  color: #333;
 }
 
 .dark-mode .card p {
@@ -536,6 +544,7 @@ body {
 .product-card {
   text-align: center;
   background: white;
+  color: #333;
   padding: 2rem;
   border-radius: 8px;
   transition: all 0.4s ease;
@@ -562,8 +571,16 @@ body {
   color: var(--primary);
 }
 
+.product-card p {
+  color: #333;
+}
+
 .dark-mode .product-card {
   background: #1e1e1e;
+  color: var(--dark-text);
+}
+
+.dark-mode .product-card p {
   color: var(--dark-text);
 }
 
@@ -796,8 +813,8 @@ body {
 /* ========== ANIMATIONS ========== */
 
 .fade-in {
-  opacity: 0;
-  transform: translateY(30px);
+  opacity: 1;
+  transform: translateY(0);
   transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -807,8 +824,8 @@ body {
 }
 
 .slide-in-left {
-  opacity: 0;
-  transform: translateX(-50px);
+  opacity: 1;
+  transform: translateX(0);
   transition: all 0.6s ease-out;
 }
 
@@ -818,8 +835,8 @@ body {
 }
 
 .slide-in-right {
-  opacity: 0;
-  transform: translateX(50px);
+  opacity: 1;
+  transform: translateX(0);
   transition: all 0.6s ease-out;
 }
 
