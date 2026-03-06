@@ -4,40 +4,52 @@
 
 // Initialize dark mode on page load
 function initDarkMode() {
-  const darkModeEnabled = localStorage.getItem('darkMode') === 'true';
-  if (darkModeEnabled) {
+  // Check localStorage for saved preference
+  const savedDarkMode = localStorage.getItem('sivaMedicalsDarkMode');
+  
+  // Apply dark mode if it was previously enabled
+  if (savedDarkMode === 'true') {
     document.body.classList.add('dark-mode');
-    updateDarkModeButtons();
+    updateAllDarkModeButtons(true);
+  } else {
+    document.body.classList.remove('dark-mode');
+    updateAllDarkModeButtons(false);
   }
 }
 
-// Toggle dark mode
-function toggleDarkMode() {
-  document.body.classList.toggle('dark-mode');
-  const isDarkMode = document.body.classList.contains('dark-mode');
-  localStorage.setItem('darkMode', isDarkMode ? 'true' : 'false');
-  updateDarkModeButtons();
-}
-
 // Update all dark mode buttons
-function updateDarkModeButtons() {
-  const isDarkMode = document.body.classList.contains('dark-mode');
-  const darkToggles = document.querySelectorAll('#darkToggle');
-  
-  darkToggles.forEach(toggle => {
-    if (isDarkMode) {
-      toggle.innerHTML = '<i class="fas fa-sun"></i> Mode';
+function updateAllDarkModeButtons(isDark) {
+  const allButtons = document.querySelectorAll('#darkToggle');
+  allButtons.forEach(btn => {
+    if (isDark) {
+      btn.innerHTML = '<i class="fas fa-sun"></i> Mode';
+      btn.classList.add('dark-mode-active');
     } else {
-      toggle.innerHTML = '<i class="fas fa-moon"></i> Mode';
+      btn.innerHTML = '<i class="fas fa-moon"></i> Mode';
+      btn.classList.remove('dark-mode-active');
     }
   });
 }
 
-// Setup dark mode toggle listeners
-function setupDarkModeListeners() {
-  const darkToggles = document.querySelectorAll('#darkToggle');
-  darkToggles.forEach(toggle => {
-    toggle.addEventListener('click', function(e) {
+// Toggle dark mode
+function toggleDarkMode() {
+  const isDark = document.body.classList.toggle('dark-mode');
+  localStorage.setItem('sivaMedicalsDarkMode', isDark);
+  updateAllDarkModeButtons(isDark);
+}
+
+// Setup dark mode button listeners
+function setupDarkModeButtons() {
+  const allButtons = document.querySelectorAll('#darkToggle');
+  allButtons.forEach(btn => {
+    // Remove any existing listeners
+    btn.replaceWith(btn.cloneNode(true));
+  });
+  
+  // Add fresh listeners
+  const newButtons = document.querySelectorAll('#darkToggle');
+  newButtons.forEach(btn => {
+    btn.addEventListener('click', function(e) {
       e.preventDefault();
       e.stopPropagation();
       toggleDarkMode();
@@ -45,21 +57,21 @@ function setupDarkModeListeners() {
   });
 }
 
-// Initialize on DOMContentLoaded
+// Initialize on page load
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
     initDarkMode();
-    setupDarkModeListeners();
+    setupDarkModeButtons();
   });
 } else {
   initDarkMode();
-  setupDarkModeListeners();
+  setupDarkModeButtons();
 }
 
-// Also initialize on window load
+// Also handle dynamic button creation
 window.addEventListener('load', function() {
   initDarkMode();
-  setupDarkModeListeners();
+  setupDarkModeButtons();
 });
 
 // ========================================
