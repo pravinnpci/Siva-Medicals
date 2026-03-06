@@ -380,7 +380,36 @@ backToTopButton.addEventListener('mouseleave', function() {
 });
 
 // ========================================
-// 9. UTILITY: CONSOLE WELCOME MESSAGE
+// 9. FADE-IN ANIMATION ON SCROLL
+// ========================================
+
+function observeFadeInElements() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, {
+    threshold: 0.1,
+    rootMargin: '0px 0px -50px 0px'
+  });
+
+  // Observe all fade-in elements
+  const fadeInElements = document.querySelectorAll('.fade-in, .slide-in-left, .slide-in-right');
+  fadeInElements.forEach(el => {
+    observer.observe(el);
+  });
+}
+
+// Initialize fade-in animations on page load
+document.addEventListener('DOMContentLoaded', observeFadeInElements);
+if (document.readyState !== "loading") {
+  observeFadeInElements();
+}
+
+// ========================================
+// 10. UTILITY: CONSOLE WELCOME MESSAGE
 // ========================================
 
 console.log('%c🔧 Siva Medicals Website', 'font-size: 20px; font-weight: bold; color: #d4a843;');

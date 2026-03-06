@@ -108,8 +108,8 @@ body {
 }
 
 .dark-mode body {
-  background: var(--dark-bg);
-  color: var(--dark-text);
+  background: var(--dark-bg) !important;
+  color: var(--dark-text) !important;
 }
 
 .dark-mode .navbar {
@@ -143,18 +143,23 @@ body {
 
 .dark-mode .section {
   background: var(--dark-bg);
+  color: var(--dark-text);
 }
 
+.dark-mode h1,
 .dark-mode h2,
 .dark-mode h3,
 .dark-mode h4,
 .dark-mode h5,
 .dark-mode h6 {
-  color: var(--dark-text);
+  color: var(--dark-text) !important;
 }
 
-.dark-mode p {
-  color: var(--dark-text);
+.dark-mode p,
+.dark-mode span,
+.dark-mode li,
+.dark-mode div {
+  color: var(--dark-text) !important;
 }
 
 .dark-mode .text-muted {
@@ -163,10 +168,26 @@ body {
 
 .dark-mode .bg-light {
   background: #1a1a1a !important;
+  color: var(--dark-text) !important;
+}
+
+.dark-mode .bg-light p,
+.dark-mode .bg-light h2,
+.dark-mode .bg-light h3,
+.dark-mode .bg-light h4,
+.dark-mode .bg-light h5 {
+  color: var(--dark-text) !important;
 }
 
 .dark-mode footer {
   background: #0f0f0f;
+  color: var(--dark-text);
+}
+
+.dark-mode footer p,
+.dark-mode footer a,
+.dark-mode footer h5 {
+  color: #ccc !important;
 }
 
 .dark-mode .form-label {
@@ -193,6 +214,97 @@ body {
 
 .dark-mode .form-check-label {
   color: var(--dark-text);
+}
+
+.dark-mode .product-card {
+  background: #1e1e1e;
+  color: var(--dark-text);
+}
+
+.dark-mode .product-card p {
+  color: var(--dark-text);
+}
+
+.dark-mode .carousel-item {
+  color: var(--dark-text);
+}
+
+.dark-mode .carousel-item p {
+  color: var(--dark-text);
+}
+
+.dark-mode .carousel-item h6 {
+  color: var(--accent);
+}
+
+.dark-mode a {
+  color: var(--accent);
+}
+
+.dark-mode footer a {
+  color: #ccc;
+}
+
+.dark-mode footer a:hover {
+  color: var(--accent);
+}
+
+.dark-mode .d-flex h5,
+.dark-mode .d-flex p {
+  color: var(--dark-text) !important;
+}
+
+.dark-mode .text-center p {
+  color: var(--dark-text);
+}
+
+.dark-mode li {
+  color: var(--dark-text);
+}
+
+/* Additional dark mode text styling for content sections */
+.dark-mode .fs-5 {
+  color: var(--dark-text) !important;
+}
+
+.dark-mode .row {
+  color: var(--dark-text);
+}
+
+.dark-mode .col-lg-6 p {
+  color: var(--dark-text);
+}
+
+.dark-mode .d-flex {
+  color: var(--dark-text);
+}
+
+.dark-mode strong {
+  color: var(--dark-text);
+}
+
+.dark-mode .text-center {
+  color: var(--dark-text);
+}
+
+.dark-mode .mb-3,
+.dark-mode .mb-4,
+.dark-mode .mb-5 {
+  color: var(--dark-text);
+}
+
+.dark-mode img {
+  opacity: 0.9;
+}
+
+/* Ensure carousel styling in dark mode */
+.dark-mode .carousel-inner {
+  background: var(--dark-bg);
+}
+
+.dark-mode .carousel-control-prev,
+.dark-mode .carousel-control-next {
+  background: var(--accent);
 }
 
 /* ========== HERO SECTION ========== */
@@ -450,8 +562,17 @@ body {
   color: var(--primary);
 }
 
+.dark-mode .product-card {
+  background: #1e1e1e;
+  color: var(--dark-text);
+}
+
 .dark-mode .product-card h5 {
   color: var(--accent);
+}
+
+.dark-mode .product-card p {
+  color: var(--dark-text);
 }
 
 .product-card .price {
@@ -490,6 +611,14 @@ body {
 .carousel-item h6 {
   font-size: 1rem;
   font-weight: 700;
+  color: var(--accent);
+}
+
+.dark-mode .carousel-item p {
+  color: var(--dark-text);
+}
+
+.dark-mode .carousel-item h6 {
   color: var(--accent);
 }
 
