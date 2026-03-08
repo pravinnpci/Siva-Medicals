@@ -4,55 +4,39 @@
 
 function initBackToTop() {
   // Create back to top button
-  const backToTopButton = document.createElement('button');
-  backToTopButton.innerHTML = '<i class="fas fa-arrow-up"></i>';
-  backToTopButton.id = 'backToTop';
-  backToTopButton.style.cssText = `
-    position: fixed;
-    bottom: 30px;
-    right: 30px;
-    background: var(--accent);
-    color: white;
-    border: none;
-    padding: 12px 15px;
-    border-radius: 50%;
-    cursor: pointer;
-    display: none;
-    z-index: 999;
-    transition: all 0.3s ease;
-    font-size: 1.2rem;
-    box-shadow: 0 4px 12px rgba(212, 168, 67, 0.3);
-  `;
-
-  document.body.appendChild(backToTopButton);
+  let backToTopButton = document.getElementById('backToTop');
+  
+  // If button doesn't exist, create it
+  if (!backToTopButton) {
+    backToTopButton = document.createElement('button');
+    backToTopButton.innerHTML = '<i class="fas fa-arrow-up"></i>';
+    backToTopButton.id = 'backToTop';
+    backToTopButton.classList.add('hidden');
+    document.body.appendChild(backToTopButton);
+  }
 
   // Show/hide button on scroll
-  window.addEventListener('scroll', () => {
+  function toggleBackToTop() {
     if (window.scrollY > 300) {
-      backToTopButton.style.display = 'flex';
-      backToTopButton.style.alignItems = 'center';
-      backToTopButton.style.justifyContent = 'center';
+      backToTopButton.classList.remove('hidden');
     } else {
-      backToTopButton.style.display = 'none';
+      backToTopButton.classList.add('hidden');
     }
-  });
+  }
+
+  window.addEventListener('scroll', toggleBackToTop);
 
   // Scroll to top on click
-  backToTopButton.addEventListener('click', () => {
+  backToTopButton.addEventListener('click', (e) => {
+    e.preventDefault();
     window.scrollTo({
       top: 0,
       behavior: 'smooth'
     });
   });
 
-  // Hover effects
-  backToTopButton.addEventListener('mouseenter', function() {
-    this.style.transform = 'translateY(-5px)';
-  });
-
-  backToTopButton.addEventListener('mouseleave', function() {
-    this.style.transform = 'translateY(0)';
-  });
+  // Check initial state
+  toggleBackToTop();
 }
 
 // ========================================
