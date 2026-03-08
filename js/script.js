@@ -1,109 +1,59 @@
 // ========================================
-// 1. DARK MODE TOGGLE
+// 1. BACK TO TOP BUTTON
 // ========================================
 
-// Initialize dark mode on page load
-function initDarkMode() {
-  const savedDarkMode = localStorage.getItem('sivaMedicalsDarkMode') === 'true';
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const shouldBeDark = savedDarkMode || (!localStorage.getItem('sivaMedicalsDarkMode') && prefersDark);
+function initBackToTop() {
+  // Create back to top button
+  const backToTopButton = document.createElement('button');
+  backToTopButton.innerHTML = '<i class="fas fa-arrow-up"></i>';
+  backToTopButton.id = 'backToTop';
+  backToTopButton.style.cssText = `
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 12px 15px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: none;
+    z-index: 999;
+    transition: all 0.3s ease;
+    font-size: 1.2rem;
+    box-shadow: 0 4px 12px rgba(212, 168, 67, 0.3);
+  `;
 
-  if (shouldBeDark) {
-    document.body.classList.add('dark-mode');
-  } else {
-    document.body.classList.remove('dark-mode');
-  }
+  document.body.appendChild(backToTopButton);
 
-  updateDarkModeButtons();
-}
-
-// Update all dark mode buttons
-function updateDarkModeButtons() {
-  const isDark = document.body.classList.contains('dark-mode');
-  const allButtons = document.querySelectorAll('#darkToggle');
-
-  allButtons.forEach(btn => {
-    if (isDark) {
-      btn.innerHTML = '<i class="fas fa-sun"></i> Mode';
-      btn.setAttribute('aria-label', 'Switch to light mode');
+  // Show/hide button on scroll
+  window.addEventListener('scroll', () => {
+    if (window.scrollY > 300) {
+      backToTopButton.style.display = 'flex';
+      backToTopButton.style.alignItems = 'center';
+      backToTopButton.style.justifyContent = 'center';
     } else {
-      btn.innerHTML = '<i class="fas fa-moon"></i> Mode';
-      btn.setAttribute('aria-label', 'Switch to dark mode');
+      backToTopButton.style.display = 'none';
     }
   });
-}
 
-// Toggle dark mode
-function toggleDarkMode() {
-  const isDark = document.body.classList.toggle('dark-mode');
-  localStorage.setItem('sivaMedicalsDarkMode', isDark.toString());
-  updateDarkModeButtons();
-
-  // Dispatch custom event for other scripts
-  window.dispatchEvent(new CustomEvent('darkModeChanged', { detail: { isDark } }));
-}
-
-// Setup dark mode button listeners
-function setupDarkModeButtons() {
-  // Remove existing listeners by cloning and replacing
-  const allButtons = document.querySelectorAll('#darkToggle');
-  allButtons.forEach(btn => {
-    const newBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(newBtn, btn);
-  });
-
-  // Add fresh listeners
-  const newButtons = document.querySelectorAll('#darkToggle');
-  newButtons.forEach(btn => {
-    btn.addEventListener('click', function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      toggleDarkMode();
+  // Scroll to top on click
+  backToTopButton.addEventListener('click', () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
     });
   });
-}
 
-// Initialize on DOM ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', function() {
-    initDarkMode();
-    setupDarkModeButtons();
+  // Hover effects
+  backToTopButton.addEventListener('mouseenter', function() {
+    this.style.transform = 'translateY(-5px)';
   });
-} else {
-  initDarkMode();
-  setupDarkModeButtons();
-}
 
-// Also initialize on window load
-window.addEventListener('load', function() {
-  initDarkMode();
-  setupDarkModeButtons();
-});
-  newButtons.forEach(btn => {
-    btn.addEventListener('click', function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      toggleDarkMode();
-    });
+  backToTopButton.addEventListener('mouseleave', function() {
+    this.style.transform = 'translateY(0)';
   });
 }
-
-// Initialize on page load
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', function() {
-    initDarkMode();
-    setupDarkModeButtons();
-  });
-} else {
-  initDarkMode();
-  setupDarkModeButtons();
-}
-
-// Also handle dynamic button creation
-window.addEventListener('load', function() {
-  initDarkMode();
-  setupDarkModeButtons();
-});
 
 // ========================================
 // 1.5 REAL-TIME FORM VALIDATION
@@ -192,46 +142,49 @@ function validatePhoneField() {
 // 2. SCROLL ANIMATIONS - FADE IN
 // ========================================
 
-const faders = document.querySelectorAll(".fade-in, .slide-in-left, .slide-in-right");
+document.addEventListener('DOMContentLoaded', function() {
+  const faders = document.querySelectorAll(".fade-in, .slide-in-left, .slide-in-right");
 
-const appearOptions = {
-  threshold: 0.15,
-  rootMargin: "0px 0px -100px 0px"
-};
+  const appearOptions = {
+    threshold: 0.15,
+    rootMargin: "0px 0px -100px 0px"
+  };
 
-const appearOnScroll = new IntersectionObserver(function(entries, observer) {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      entry.target.classList.add("visible");
-      observer.unobserve(entry.target);
+  const appearOnScroll = new IntersectionObserver(function(entries, observer) {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add("visible");
+        observer.unobserve(entry.target);
+      }
+    });
+  }, appearOptions);
+
+  faders.forEach(fader => {
+    appearOnScroll.observe(fader);
+    const rect = fader.getBoundingClientRect();
+    if (rect.top < window.innerHeight) {
+      fader.classList.add("visible");
+      appearOnScroll.unobserve(fader);
     }
   });
-}, appearOptions);
-
-// observe all faders and also make any already visible appear immediately
-faders.forEach(fader => {
-  appearOnScroll.observe(fader);
-  const rect = fader.getBoundingClientRect();
-  if (rect.top < window.innerHeight) {
-    fader.classList.add("visible");
-    appearOnScroll.unobserve(fader);
-  }
 });
 
 // ========================================
 // 3. SMOOTH SCROLL NAVIGATION
 // ========================================
 
-document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-  anchor.addEventListener('click', function (e) {
-    const href = this.getAttribute('href');
-    if (href !== '#' && document.querySelector(href)) {
-      e.preventDefault();
-      document.querySelector(href).scrollIntoView({
-        behavior: 'smooth',
-        block: 'start'
-      });
-    }
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+      const href = this.getAttribute('href');
+      if (href !== '#' && document.querySelector(href)) {
+        e.preventDefault();
+        document.querySelector(href).scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }
+    });
   });
 });
 
@@ -239,79 +192,75 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
 // 4. FORM VALIDATION - CONTACT FORM
 // ========================================
 
-const form = document.getElementById("contactForm");
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById("contactForm");
 
-if (form) {
-  form.addEventListener("submit", function(e) {
-    let isValid = true;
-    const errors = [];
-    
-    // Get form values
-    const name = document.getElementById("name").value.trim();
-    const email = document.getElementById("email").value.trim();
-    const phone = document.getElementById("phone").value.trim();
-    const subject = document.getElementById("subject").value;
-    const message = document.getElementById("message").value.trim();
-    const agree = document.getElementById("agree").checked;
-
-    // Validation checks
-    if (name === "") {
-      errors.push("Please enter your full name");
-      isValid = false;
-    }
-
-    if (email === "") {
-      errors.push("Please enter your email address");
-      isValid = false;
-    } else if (!isValidEmail(email)) {
-      errors.push("Please enter a valid email address");
-      isValid = false;
-    }
-
-    if (phone === "") {
-      errors.push("Please enter your phone number");
-      isValid = false;
-    } else if (!isValidPhone(phone)) {
-      errors.push("Please enter a valid phone number");
-      isValid = false;
-    }
-
-    if (subject === "") {
-      errors.push("Please select a subject");
-      isValid = false;
-    }
-
-    if (message === "") {
-      errors.push("Please enter your message");
-      isValid = false;
-    } else if (message.length < 10) {
-      errors.push("Message must be at least 10 characters long");
-      isValid = false;
-    }
-
-    if (!agree) {
-      errors.push("Please agree to the privacy policy and terms of service");
-      isValid = false;
-    }
-
-    if (!isValid) {
-      e.preventDefault();
-      showFormErrors(errors);
-    } else {
-      // Form is valid, let Formspree handle the submission
-      // Show a loading message
-      const submitBtn = form.querySelector('button[type="submit"]');
-      const originalText = submitBtn.innerHTML;
-      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Sending...';
-      submitBtn.disabled = true;
+  if (form) {
+    form.addEventListener("submit", function(e) {
+      let isValid = true;
+      const errors = [];
       
-      // The form will submit to Formspree after a brief delay
-      setTimeout(() => {
-        // Form will submit naturally
-      }, 500);
-    }
-  });
-}
+      // Get form values
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const phone = document.getElementById("phone").value.trim();
+      const subject = document.getElementById("subject").value;
+      const message = document.getElementById("message").value.trim();
+      const agree = document.getElementById("agree").checked;
+
+      // Validation checks
+      if (name === "") {
+        errors.push("Please enter your full name");
+        isValid = false;
+      }
+
+      if (email === "") {
+        errors.push("Please enter your email address");
+        isValid = false;
+      } else if (!isValidEmail(email)) {
+        errors.push("Please enter a valid email address");
+        isValid = false;
+      }
+
+      if (phone === "") {
+        errors.push("Please enter your phone number");
+        isValid = false;
+      } else if (!isValidPhone(phone)) {
+        errors.push("Please enter a valid phone number");
+        isValid = false;
+      }
+
+      if (subject === "") {
+        errors.push("Please select a subject");
+        isValid = false;
+      }
+
+      if (message === "") {
+        errors.push("Please enter your message");
+        isValid = false;
+      } else if (message.length < 10) {
+        errors.push("Message must be at least 10 characters long");
+        isValid = false;
+      }
+
+      if (!agree) {
+        errors.push("Please agree to the privacy policy and terms of service");
+        isValid = false;
+      }
+
+      if (!isValid) {
+        e.preventDefault();
+        showFormErrors(errors);
+      } else {
+        // Form is valid, let Formspree handle the submission
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Sending...';
+        submitBtn.disabled = true;
+      }
+    });
+  }
+});
 
 // Show validation errors
 function showFormErrors(errors) {
@@ -339,124 +288,80 @@ function setActiveNav() {
 document.addEventListener('DOMContentLoaded', setActiveNav);
 
 // ========================================
-// 6. NAVBAR SCROLL EFFECTS
+// 6. NAVBAR SCROLL EFFECTS & MOBILE MENU
 // ========================================
 
-let lastScrollTop = 0;
-const navbar = document.querySelector('.navbar');
+document.addEventListener('DOMContentLoaded', function() {
+  let lastScrollTop = 0;
+  const navbar = document.querySelector('.navbar');
 
-window.addEventListener('scroll', () => {
-  let scrollTop = window.scrollY;
+  window.addEventListener('scroll', () => {
+    let scrollTop = window.scrollY;
 
-  // Add shadow to navbar on scroll
-  if (scrollTop > 50) {
-    navbar?.style.boxShadow = '0 2px 12px rgba(0, 0, 0, 0.15)';
-  } else {
-    navbar?.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
-  }
+    // Add shadow to navbar on scroll
+    if (scrollTop > 50) {
+      navbar?.style.boxShadow = '0 2px 12px rgba(0, 0, 0, 0.15)';
+    } else {
+      navbar?.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
+    }
 
-  lastScrollTop = scrollTop;
-});
-
-// ========================================
-// 7. MOBILE MENU CLOSE ON LINK CLICK
-// ========================================
-
-const navMenu = document.getElementById('navmenu');
-const navLinks = document.querySelectorAll('.nav-link');
-
-navLinks.forEach(link => {
-  link.addEventListener('click', () => {
-    // Close the mobile menu if it's open
-    const bsCollapse = new bootstrap.Collapse(navMenu, {
-      toggle: false
-    });
-    bsCollapse.hide();
+    lastScrollTop = scrollTop;
   });
-});
 
-// ========================================
-// 8. BACK TO TOP BUTTON
-// ========================================
+  // Mobile menu close on link click
+  const navMenu = document.getElementById('navmenu');
+  const navLinks = document.querySelectorAll('.nav-link');
 
-const backToTopButton = document.createElement('button');
-backToTopButton.innerHTML = '<i class="fas fa-arrow-up"></i>';
-backToTopButton.id = 'backToTop';
-backToTopButton.style.cssText = `
-  position: fixed;
-  bottom: 30px;
-  right: 30px;
-  background: var(--accent);
-  color: white;
-  border: none;
-  padding: 12px 15px;
-  border-radius: 50%;
-  cursor: pointer;
-  display: none;
-  z-index: 999;
-  transition: all 0.3s ease;
-  font-size: 1.2rem;
-  box-shadow: 0 4px 12px rgba(212, 168, 67, 0.3);
-`;
-
-document.body.appendChild(backToTopButton);
-
-window.addEventListener('scroll', () => {
-  if (window.scrollY > 300) {
-    backToTopButton.style.display = 'flex';
-    backToTopButton.style.alignItems = 'center';
-    backToTopButton.style.justifyContent = 'center';
-  } else {
-    backToTopButton.style.display = 'none';
-  }
-});
-
-backToTopButton.addEventListener('click', () => {
-  window.scrollTo({
-    top: 0,
-    behavior: 'smooth'
-  });
-});
-
-backToTopButton.addEventListener('mouseenter', function() {
-  this.style.transform = 'translateY(-5px)';
-});
-
-backToTopButton.addEventListener('mouseleave', function() {
-  this.style.transform = 'translateY(0)';
-});
-
-// ========================================
-// 9. FADE-IN ANIMATION ON SCROLL
-// ========================================
-
-function observeFadeInElements() {
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('visible');
+  navLinks.forEach(link => {
+    link.addEventListener('click', () => {
+      if (navMenu && navMenu.classList.contains('show')) {
+        const bsCollapse = new bootstrap.Collapse(navMenu, {
+          toggle: false
+        });
+        bsCollapse.hide();
       }
     });
-  }, {
-    threshold: 0.1,
-    rootMargin: '0px 0px -50px 0px'
   });
-
-  // Observe all fade-in elements
-  const fadeInElements = document.querySelectorAll('.fade-in, .slide-in-left, .slide-in-right');
-  fadeInElements.forEach(el => {
-    observer.observe(el);
-  });
-}
-
-// Initialize fade-in animations on page load
-document.addEventListener('DOMContentLoaded', observeFadeInElements);
-if (document.readyState !== "loading") {
-  observeFadeInElements();
-}
+});
 
 // ========================================
-// 10. UTILITY: CONSOLE WELCOME MESSAGE
+// 7. BACK TO TOP BUTTON & BOOTSTRAP COMPONENTS
+// ========================================
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize back to top button
+  initBackToTop();
+
+  // Initialize Bootstrap carousels - fix overlapping testimonials
+  const carousels = document.querySelectorAll('.carousel');
+  carousels.forEach(carousel => {
+    // Set first item as active if none is active
+    const activeItem = carousel.querySelector('.carousel-item.active');
+    if (!activeItem) {
+      const firstItem = carousel.querySelector('.carousel-item');
+      if (firstItem) {
+        firstItem.classList.add('active');
+      }
+    }
+    
+    // Initialize with Bootstrap
+    new bootstrap.Carousel(carousel, {
+      interval: false,
+      wrap: true,
+      touch: true
+    });
+  });
+
+  // Initialize Bootstrap accordions - fix FAQ not working
+  const accordions = document.querySelectorAll('.accordion');
+  accordions.forEach(accordion => {
+    // Bootstrap handles this automatically via data-bs-toggle
+    // Just ensure all buttons are properly initialized
+  });
+});
+
+// ========================================
+// 8. UTILITY: CONSOLE WELCOME MESSAGE
 // ========================================
 
 console.log('%c🔧 Siva Medicals Website', 'font-size: 20px; font-weight: bold; color: #d4a843;');
