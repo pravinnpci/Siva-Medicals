@@ -494,40 +494,81 @@ body {
 
 #backToTop {
   position: fixed !important;
-  bottom: 30px !important;
-  right: 30px !important;
-  background: #d4a843 !important;
+  bottom: 40px !important;
+  right: 40px !important;
+  background: linear-gradient(135deg, #d4a843 0%, #e8c165 100%) !important;
   color: white !important;
   border: none !important;
-  padding: 12px 15px !important;
+  padding: 14px 17px !important;
   border-radius: 50% !important;
   cursor: pointer !important;
-  z-index: 999 !important;
-  transition: all 0.3s ease !important;
-  font-size: 1.2rem !important;
-  box-shadow: 0 4px 12px rgba(212, 168, 67, 0.3) !important;
-  width: 48px !important;
-  height: 48px !important;
+  z-index: 9999 !important;
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  font-size: 1.4rem !important;
+  box-shadow: 0 6px 20px rgba(212, 168, 67, 0.5) !important;
+  width: 56px !important;
+  height: 56px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   font-family: 'Space Mono', monospace !important;
   line-height: 1 !important;
   text-decoration: none !important;
+  opacity: 1 !important;
+  transform: translateY(0) scale(1) !important;
 }
 
 #backToTop:hover {
-  background: #b68f36 !important;
-  transform: translateY(-5px) !important;
-  box-shadow: 0 8px 20px rgba(212, 168, 67, 0.4) !important;
+  background: linear-gradient(135deg, #e8c165 0%, #f0d578 100%) !important;
+  transform: translateY(-8px) scale(1.1) !important;
+  box-shadow: 0 12px 30px rgba(212, 168, 67, 0.6) !important;
 }
 
 #backToTop:active {
-  transform: translateY(-3px) !important;
+  transform: translateY(-4px) scale(1.05) !important;
 }
 
 #backToTop.hidden {
   display: none !important;
+  opacity: 0 !important;
+}
+
+#backToTop.show {
+  animation: slideInUp 0.5s ease-out !important;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 6px 20px rgba(212, 168, 67, 0.5);
+  }
+  50% {
+    box-shadow: 0 8px 30px rgba(212, 168, 67, 0.8);
+  }
+}
+
+#backToTop.pulse {
+  animation: pulse-glow 1.5s ease-in-out infinite !important;
+}
+
+@media (max-width: 768px) {
+  #backToTop {
+    bottom: 30px !important;
+    right: 30px !important;
+    width: 50px !important;
+    height: 50px !important;
+    padding: 12px 15px !important;
+  }
 }
 
 /* ========== ANIMATIONS ========== */

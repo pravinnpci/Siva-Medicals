@@ -9,34 +9,63 @@ function initBackToTop() {
   // If button doesn't exist, create it
   if (!backToTopButton) {
     backToTopButton = document.createElement('button');
-    backToTopButton.innerHTML = '<i class="fas fa-arrow-up"></i>';
+    backToTopButton.innerHTML = '<i class="fas fa-chevron-up"></i>';
     backToTopButton.id = 'backToTop';
+    backToTopButton.setAttribute('title', 'Back to Top');
     backToTopButton.classList.add('hidden');
     document.body.appendChild(backToTopButton);
   }
 
-  // Show/hide button on scroll
+  // Track if button is visible
+  let isVisible = false;
+
+  // Show/hide button on scroll - trigger at 150px instead of 300px
   function toggleBackToTop() {
-    if (window.scrollY > 300) {
+    const scrollThreshold = 150; // Show button sooner
+    const shouldShow = window.scrollY > scrollThreshold;
+
+    if (shouldShow && !isVisible) {
       backToTopButton.classList.remove('hidden');
-    } else {
+      backToTopButton.classList.add('show');
+      // Add pulse animation briefly
+      backToTopButton.classList.add('pulse');
+      setTimeout(() => {
+        backToTopButton.classList.remove('pulse');
+      }, 3000);
+      isVisible = true;
+    } else if (!shouldShow && isVisible) {
       backToTopButton.classList.add('hidden');
+      backToTopButton.classList.remove('show');
+      isVisible = false;
     }
   }
 
-  window.addEventListener('scroll', toggleBackToTop);
+  // Throttle scroll event for better performance
+  let ticking = false;
+  window.addEventListener('scroll', () => {
+    if (!ticking) {
+      window.requestAnimationFrame(() => {
+        toggleBackToTop();
+        ticking = false;
+      });
+      ticking = true;
+    }
+  });
 
-  // Scroll to top on click
+  // Scroll to top on click with smooth animation
   backToTopButton.addEventListener('click', (e) => {
     e.preventDefault();
     window.scrollTo({
       top: 0,
-      behavior: 'smooth'
+      behavior: 'smooth'  
     });
   });
 
   // Check initial state
   toggleBackToTop();
+
+  // Log initialization
+  console.log('✓ Back to Top button initialized successfully');
 }
 
 // ========================================
