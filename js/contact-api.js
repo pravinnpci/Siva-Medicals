@@ -187,16 +187,83 @@ async function submitContactForm() {
   }
 }
 
-// Email validation
+// Email validation - comprehensive check
 function isValidEmail(email) {
+  // RFC 5322 simplified regex for email validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+  
+  if (!emailRegex.test(email)) {
+    return false;
+  }
+  
+  // Additional checks
+  // Must have valid domain
+  // No consecutive dots
+  // Must not start or end with dot in local part
+  const localPart = email.split('@')[0];
+  const domain = email.split('@')[1];
+  
+  if (!localPart || !domain) {
+    return false;
+  }
+  
+  if (localPart.startsWith('.') || localPart.endsWith('.')) {
+    return false;
+  }
+  
+  if (localPart.includes('..')) {
+    return false;
+  }
+  
+  if (domain.includes('..')) {
+    return false;
+  }
+  
+  if (!domain.includes('.')) {
+    return false;
+  }
+  
+  const domainParts = domain.split('.');
+  if (domainParts.some(part => !part || part.length < 1)) {
+    return false;
+  }
+  
+  return true;
 }
 
-// Phone validation
+// Phone validation - comprehensive check  
 function isValidPhone(phone) {
+  // Remove all non-digit characters to get cleaned phone
   const cleaned = phone.replace(/\D/g, '');
-  return cleaned.length === 10 || cleaned.length === 12;
+  
+  // Indian phone numbers are typically 10 digits
+  // International format with country code can be 12-13 digits
+  if (cleaned.length !== 10 && cleaned.length !== 12 && cleaned.length !== 13) {
+    return false;
+  }
+  
+  // For 10-digit Indian numbers, should start with 6, 7, 8, or 9
+  if (cleaned.length === 10) {
+    const firstDigit = parseInt(cleaned[0]);
+    if (firstDigit < 6 || firstDigit > 9) {
+      return false;
+    }
+  }
+  
+  // For 12-13 digit numbers (with country code), should start with +91 or 91
+  if (cleaned.length === 12 || cleaned.length === 13) {
+    if (!cleaned.startsWith('91')) {
+      return false;
+    }
+    // Check remaining digits
+    const remainingDigits = cleaned.substring(2);
+    const firstDigitAfterCode = parseInt(remainingDigits[0]);
+    if (firstDigitAfterCode < 6 || firstDigitAfterCode > 9) {
+      return false;
+    }
+  }
+  
+  return true;
 }
 
 // Show validation errors
