@@ -4,6 +4,23 @@
 
 document.addEventListener('DOMContentLoaded', function() {
   const contactForm = document.getElementById('contactForm');
+  const categorySelect = document.getElementById('category');
+  const prescriptionFileGroup = document.getElementById('prescriptionFileGroup');
+  const prescriptionFile = document.getElementById('prescriptionFile');
+
+  // Show/hide prescription file upload based on category
+  if (categorySelect) {
+    categorySelect.addEventListener('change', function() {
+      if (this.value === 'with_prescription') {
+        prescriptionFileGroup.style.display = 'block';
+        prescriptionFile.required = true;
+      } else {
+        prescriptionFileGroup.style.display = 'none';
+        prescriptionFile.required = false;
+        prescriptionFile.value = ''; // Clear file input
+      }
+    });
+  }
 
   if (contactForm) {
     contactForm.addEventListener('submit', async function(e) {
@@ -19,7 +36,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const category = document.getElementById("category").value.trim();
       const address = document.getElementById("address").value.trim();
       const message = document.getElementById("message").value.trim();
-      const prescriptionFile = document.getElementById("prescriptionFile").files[0];
+      const prescriptionFileInput = document.getElementById("prescriptionFile").files[0];
 
       // Validation checks
       if (name === "") {
@@ -61,20 +78,23 @@ document.addEventListener('DOMContentLoaded', function() {
         isValid = false;
       }
 
-      if (!prescriptionFile) {
-        errors.push("Please upload a prescription photo");
-        isValid = false;
-      } else {
-        // Check file type
-        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-        if (!allowedTypes.includes(prescriptionFile.type)) {
-          errors.push("Please upload a valid image file (JPEG, PNG, GIF)");
+      // Only require prescription for "with_prescription" category
+      if (category === 'with_prescription') {
+        if (!prescriptionFileInput) {
+          errors.push("Please upload a prescription photo");
           isValid = false;
-        }
-        // Check file size (5MB max)
-        if (prescriptionFile.size > 5 * 1024 * 1024) {
-          errors.push("File size must be less than 5MB");
-          isValid = false;
+        } else {
+          // Check file type
+          const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+          if (!allowedTypes.includes(prescriptionFileInput.type)) {
+            errors.push("Please upload a valid image file (JPEG, PNG, GIF)");
+            isValid = false;
+          }
+          // Check file size (5MB max)
+          if (prescriptionFileInput.size > 5 * 1024 * 1024) {
+            errors.push("File size must be less than 5MB");
+            isValid = false;
+          }
         }
       }
 
@@ -100,7 +120,7 @@ async function submitContactForm() {
   const category = document.getElementById("category").value.trim();
   const address = document.getElementById("address").value.trim();
   const message = document.getElementById("message").value.trim();
-  const prescriptionFile = document.getElementById("prescriptionFile").files[0];
+  const prescriptionFileInput = document.getElementById("prescriptionFile").files[0];
 
   // Add data to FormData
   formData.append('name', name);
@@ -112,7 +132,11 @@ async function submitContactForm() {
   formData.append('address', address);
   formData.append('gpay', '9097732213');
   formData.append('whatsapp', '9952930484');
-  formData.append('prescription', prescriptionFile);
+  
+  // Only append prescription file if it exists
+  if (prescriptionFileInput) {
+    formData.append('prescription', prescriptionFileInput);
+  }
 
   // Show loading state
   const submitBtn = document.querySelector('#contactForm button[type="submit"]');

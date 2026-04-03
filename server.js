@@ -345,6 +345,8 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
     }
 
     const { name, email, phone, subject, message, address, gpay, whatsapp, category } = req.body;
+    
+    // File is optional - only set path if file was uploaded
     const prescriptionFile = req.file ? req.file.filename : null;
     const prescriptionPath = prescriptionFile ? `/uploads/${prescriptionFile}` : null;
 
