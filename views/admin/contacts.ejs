@@ -112,10 +112,11 @@
                 <% } else { %>
                     <% contacts.forEach(contact => { %>
                         <div class="contact-card">
-                            <div class="contact-header">
+                            <div class="contact-header" style="cursor:pointer;" onclick="toggleContactDetails(<%= contact.id %>)">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
                                         <h5 class="mb-1"><%= contact.name %></h5>
+                                        <p class="mb-0"><i class="fas fa-envelope me-1"></i><%= contact.email %> &nbsp;|&nbsp; <i class="fas fa-phone me-1"></i><%= contact.phone %></p>
                                         <small class="text-muted">
                                             <i class="fas fa-calendar me-1"></i>
                                             <%= new Date(contact.submitted_at).toLocaleString() %>
@@ -133,7 +134,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="contact-body">
+                            <div id="contact-details-<%= contact.id %>" class="contact-body" style="display:none;">
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="mb-3">
@@ -193,6 +194,13 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Toggle full submission details
+        function toggleContactDetails(contactId) {
+            const details = document.getElementById(`contact-details-${contactId}`);
+            if (!details) return;
+            details.style.display = details.style.display === 'none' ? 'block' : 'none';
+        }
+
         // Handle status updates
         document.querySelectorAll('.status-select').forEach(select => {
             select.addEventListener('change', async function() {
@@ -209,13 +217,18 @@
                     });
 
                     if (response.ok) {
-                        // Update badge
-                        const badge = this.previousElementSibling;
-                        badge.className = `status-badge status-${newStatus}`;
-                        badge.textContent = newStatus;
+                        const parent = this.closest('.contact-header');
+                        if (parent) {
+                            const badge = parent.querySelector('.status-badge');
+                            if (badge) {
+                                badge.className = `status-badge status-${newStatus}`;
+                                badge.textContent = newStatus;
+                            }
+                        }
+                        this.dataset.originalValue = newStatus;
+                        alert('Status updated successfully');
                     } else {
                         alert('Failed to update status');
-                        // Reset select
                         this.value = this.dataset.originalValue;
                     }
                 } catch (error) {

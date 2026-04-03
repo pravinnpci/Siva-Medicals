@@ -220,6 +220,11 @@ app.get('/admin/dashboard', requireAuth, async (req, res) => {
 // Contact submissions
 app.get('/admin/contacts', requireAuth, async (req, res) => {
   try {
+    await pool.query(`
+      ALTER TABLE contact_submissions
+      ADD COLUMN IF NOT EXISTS prescription_path VARCHAR(500)
+    `);
+
     const result = await pool.query(`
       SELECT * FROM contact_submissions
       ORDER BY submitted_at DESC

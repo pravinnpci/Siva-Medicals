@@ -85,6 +85,7 @@ async function submitContactForm() {
   const name = document.getElementById("fullName").value.trim();
   const email = document.getElementById("email").value.trim();
   const phone = document.getElementById("phone").value.trim();
+  const address = document.getElementById("address").value.trim();
   const message = document.getElementById("message").value.trim();
   const prescriptionFile = document.getElementById("prescriptionFile").files[0];
 
@@ -94,7 +95,7 @@ async function submitContactForm() {
   formData.append('phone', phone);
   formData.append('subject', 'Prescription Request');
   formData.append('message', message);
-  formData.append('address', '1/47, Perumal Kovil Street, Madampakkam - Guduvancheri, Kanchipuram Dist - 603 202');
+  formData.append('address', address);
   formData.append('gpay', '9097732213');
   formData.append('whatsapp', '9952930484');
   formData.append('prescription', prescriptionFile);
