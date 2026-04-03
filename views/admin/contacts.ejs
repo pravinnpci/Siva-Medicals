@@ -168,6 +168,13 @@
                                                 <%= contact.whatsapp %>
                                             </div>
                                         <% } %>
+
+                                        <% if (contact.prescription_path) { %>
+                                            <div class="mb-3">
+                                                <strong><i class="fas fa-file-medical-alt me-2"></i>Prescription:</strong>
+                                                <a href="<%= contact.prescription_path %>" target="_blank" class="btn btn-sm btn-outline-primary ms-2">Download/View</a>
+                                            </div>
+                                        <% } %>
                                     </div>
                                 </div>
                                 <div class="mt-3">

@@ -341,6 +341,7 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
 
     const { name, email, phone, subject, message, address, gpay, whatsapp } = req.body;
     const prescriptionFile = req.file ? req.file.filename : null;
+    const prescriptionPath = prescriptionFile ? `/uploads/${prescriptionFile}` : null;
 
     // Ensure required fields
     if (!name || !email || !phone || !message) {
@@ -356,7 +357,7 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
     await pool.query(`
       INSERT INTO contact_submissions (name, email, phone, subject, message, address, gpay, whatsapp, prescription_path)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `, [name, email, phone, subject, message, address, gpay, whatsapp, prescriptionFile]);
+    `, [name, email, phone, subject, message, address, gpay, whatsapp, prescriptionPath]);
 
     res.json({ success: true, message: 'Message sent successfully' });
   } catch (error) {
