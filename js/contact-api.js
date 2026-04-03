@@ -16,6 +16,8 @@ document.addEventListener('DOMContentLoaded', function() {
       const name = document.getElementById("fullName").value.trim();
       const email = document.getElementById("email").value.trim();
       const phone = document.getElementById("phone").value.trim();
+      const category = document.getElementById("category").value.trim();
+      const address = document.getElementById("address").value.trim();
       const message = document.getElementById("message").value.trim();
       const prescriptionFile = document.getElementById("prescriptionFile").files[0];
 
@@ -38,6 +40,16 @@ document.addEventListener('DOMContentLoaded', function() {
         isValid = false;
       } else if (!isValidPhone(phone)) {
         errors.push("Please enter a valid phone number");
+        isValid = false;
+      }
+
+      if (category === "") {
+        errors.push("Please select a category");
+        isValid = false;
+      }
+
+      if (address === "") {
+        errors.push("Please enter your address");
         isValid = false;
       }
 
@@ -85,6 +97,7 @@ async function submitContactForm() {
   const name = document.getElementById("fullName").value.trim();
   const email = document.getElementById("email").value.trim();
   const phone = document.getElementById("phone").value.trim();
+  const category = document.getElementById("category").value.trim();
   const address = document.getElementById("address").value.trim();
   const message = document.getElementById("message").value.trim();
   const prescriptionFile = document.getElementById("prescriptionFile").files[0];
@@ -93,7 +106,8 @@ async function submitContactForm() {
   formData.append('name', name);
   formData.append('email', email);
   formData.append('phone', phone);
-  formData.append('subject', 'Prescription Request');
+  formData.append('category', category);
+  formData.append('subject', category.replace(/_/g, ' ').toUpperCase());
   formData.append('message', message);
   formData.append('address', address);
   formData.append('gpay', '9097732213');

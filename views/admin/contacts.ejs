@@ -157,16 +157,11 @@
                                                 <%= contact.address %>
                                             </div>
                                         <% } %>
-                                        <% if (contact.gpay) { %>
+
+                                        <% if (contact.category) { %>
                                             <div class="mb-3">
-                                                <strong><i class="fas fa-credit-card me-2"></i>GPay:</strong>
-                                                <%= contact.gpay %>
-                                            </div>
-                                        <% } %>
-                                        <% if (contact.whatsapp) { %>
-                                            <div class="mb-3">
-                                                <strong><i class="fab fa-whatsapp me-2"></i>WhatsApp:</strong>
-                                                <%= contact.whatsapp %>
+                                                <strong><i class="fas fa-tag me-2"></i>Category:</strong>
+                                                <span class="badge bg-info"><%= contact.category.replace(/_/g, ' ').toUpperCase() %></span>
                                             </div>
                                         <% } %>
 

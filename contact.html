@@ -104,6 +104,19 @@
   </div>
 
   <div class="form-group">
+    <label for="category">Category <span style="color:red;">*</span></label>
+    <select name="category" id="category" class="form-control" required>
+      <option value="">-- Select Category --</option>
+      <option value="with_prescription">With Prescription</option>
+      <option value="without_prescription">Without Prescription</option>
+      <option value="feedback">Feedback</option>
+      <option value="complaint">Complaint</option>
+      <option value="inquiry">Inquiry</option>
+      <option value="order">Order</option>
+    </select>
+  </div>
+
+  <div class="form-group">
     <label for="address">Address</label>
     <textarea name="address" id="address" class="form-control" rows="2" required></textarea>
   </div>

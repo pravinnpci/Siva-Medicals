@@ -344,7 +344,7 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
       return res.status(503).json({ error: 'Database not available' });
     }
 
-    const { name, email, phone, subject, message, address, gpay, whatsapp } = req.body;
+    const { name, email, phone, subject, message, address, gpay, whatsapp, category } = req.body;
     const prescriptionFile = req.file ? req.file.filename : null;
     const prescriptionPath = prescriptionFile ? `/uploads/${prescriptionFile}` : null;
 
@@ -353,16 +353,17 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Create optional prescription_path column if missing
+    // Create optional columns if missing
     await pool.query(`
       ALTER TABLE contact_submissions
-      ADD COLUMN IF NOT EXISTS prescription_path VARCHAR(500)
+      ADD COLUMN IF NOT EXISTS prescription_path VARCHAR(500),
+      ADD COLUMN IF NOT EXISTS category VARCHAR(50)
     `);
 
     await pool.query(`
-      INSERT INTO contact_submissions (name, email, phone, subject, message, address, gpay, whatsapp, prescription_path)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `, [name, email, phone, subject, message, address, gpay, whatsapp, prescriptionPath]);
+      INSERT INTO contact_submissions (name, email, phone, subject, message, address, gpay, whatsapp, prescription_path, category)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `, [name, email, phone, subject, message, address, gpay, whatsapp, prescriptionPath, category]);
 
     res.json({ success: true, message: 'Message sent successfully' });
   } catch (error) {
