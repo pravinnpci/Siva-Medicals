@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Messages - Siva Medicals Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .sidebar {
+            background: #343a40;
+            min-height: 100vh;
+            color: white;
+        }
+        .sidebar .nav-link {
+            color: rgba(255,255,255,.75);
+            padding: 12px 20px;
+            margin: 5px 0;
+            border-radius: 5px;
+        }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            color: white;
+            background: #d4a843;
+        }
+        .sidebar .nav-link i {
+            margin-right: 10px;
+            width: 20px;
+        }
+        .message-card {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background: white;
+        }
+        .message-inbound {
+            border-left: 4px solid #28a745;
+        }
+        .message-outbound {
+            border-left: 4px solid #007bff;
+            background: #f8f9fa;
+        }
+        .message-header {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+            background: #f8f9fa;
+            border-radius: 8px 8px 0 0;
+        }
+        .message-body {
+            padding: 15px;
+        }
+        .message-direction {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .direction-inbound {
+            background: #d4edda;
+            color: #155724;
+        }
+        .direction-outbound {
+            background: #cce5ff;
+            color: #004085;
+        }
+        .phone-link {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .phone-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 px-0 sidebar">
+                <div class="p-3">
+                    <h5 class="text-center mb-4">
+                        <i class="fas fa-capsules me-2"></i>
+                        Siva Medicals
+                    </h5>
+                    <nav class="nav flex-column">
+                        <a class="nav-link" href="/admin/dashboard">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </a>
+                        <a class="nav-link" href="/admin/contacts">
+                            <i class="fas fa-envelope"></i> Contact Forms
+                        </a>
+                        <a class="nav-link" href="/admin/files">
+                            <i class="fas fa-file-upload"></i> File Uploads
+                        </a>
+                        <a class="nav-link active" href="/admin/whatsapp">
+                            <i class="fab fa-whatsapp"></i> WhatsApp
+                        </a>
+                        <% if (user.role === 'super_admin') { %>
+                        <a class="nav-link" href="/admin/users">
+                            <i class="fas fa-users"></i> Users
+                        </a>
+                        <% } %>
+                    </nav>
+                </div>
+                <div class="mt-auto p-3">
+                    <form method="POST" action="/admin/logout" class="d-inline">
+                        <button type="submit" class="btn btn-outline-light btn-sm w-100">
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10 px-4 py-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2><i class="fab fa-whatsapp me-2"></i>WhatsApp Messages</h2>
+                    <div class="text-muted">
+                        Total: <%= messages.length %>
+                    </div>
+                </div>
+
+                <% if (messages.length === 0) { %>
+                    <div class="text-center py-5">
+                        <i class="fab fa-whatsapp fa-3x text-muted mb-3"></i>
+                        <h4 class="text-muted">No WhatsApp messages yet</h4>
+                        <p class="text-muted">Incoming WhatsApp messages will appear here</p>
+                        <div class="alert alert-info mt-4">
+                            <h6><i class="fas fa-info-circle me-2"></i>Setup Required</h6>
+                            <p class="mb-2">To receive WhatsApp messages, you need to:</p>
+                            <ol class="text-start">
+                                <li>Sign up for a Twilio account</li>
+                                <li>Get a WhatsApp-enabled phone number</li>
+                                <li>Configure the webhook URL in your Twilio dashboard</li>
+                                <li>Update the .env file with your Twilio credentials</li>
+                            </ol>
+                        </div>
+                    </div>
+                <% } else { %>
+                    <% messages.forEach(message => { %>
+                        <div class="message-card message-<%= message.direction %>">
+                            <div class="message-header">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>
+                                            <i class="fab fa-whatsapp me-2"></i>
+                                            <%= message.direction === 'inbound' ? 'From' : 'To' %>:
+                                            <a href="tel:<%= message.from_number %>" class="phone-link">
+                                                <%= message.from_number %>
+                                            </a>
+                                        </strong>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="message-direction direction-<%= message.direction %>">
+                                            <%= message.direction %>
+                                        </span>
+                                        <small class="text-muted">
+                                            <%= new Date(message.received_at).toLocaleString() %>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="message-body">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <div class="message-content">
+                                            <%= message.message_body.replace(/\n/g, '<br>') %>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 text-end">
+                                        <div class="btn-group" role="group">
+                                            <a href="https://wa.me/<%= message.from_number %>?text=Hello! Thank you for contacting Siva Medicals."
+                                               target="_blank" class="btn btn-sm btn-success">
+                                                <i class="fab fa-whatsapp me-1"></i>Reply
+                                            </a>
+                                            <a href="tel:<%= message.from_number %>" class="btn btn-sm btn-primary">
+                                                <i class="fas fa-phone me-1"></i>Call
+                                            </a>
+                                        </div>
+                                        <% if (message.twilio_sid) { %>
+                                            <div class="mt-2">
+                                                <small class="text-muted">
+                                                    SID: <%= message.twilio_sid %>
+                                                </small>
+                                            </div>
+                                        <% } %>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <% }); %>
+                <% } %>
+
+                <!-- Setup Instructions -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>WhatsApp Setup Instructions</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>1. Environment Variables (.env)</h6>
+                                <pre class="bg-light p-3 rounded"><code>TWILIO_ACCOUNT_SID=your_account_sid
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_WHATSAPP_NUMBER=your_whatsapp_number</code></pre>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>2. Twilio Webhook URL</h6>
+                                <p>Set this URL in your Twilio WhatsApp sandbox:</p>
+                                <code class="bg-light p-2 rounded d-block">https://yourdomain.com/webhook/whatsapp</code>
+                                <p class="mt-2 text-muted">Replace <code>yourdomain.com</code> with your actual domain</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

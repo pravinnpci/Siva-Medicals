@@ -1,0 +1,46 @@
+{
+  "name": "siva-medicals-admin",
+  "version": "1.0.0",
+  "description": "Admin panel for Siva Medicals pharmacy website",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node server-test.js",
+    "dev": "nodemon server.js",
+    "setup-db": "node setup-db.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "connect-pg-simple": "^9.0.1",
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "ejs": "^3.1.9",
+    "express": "^4.22.1",
+    "express-fileupload": "^1.4.0",
+    "express-session": "^1.17.3",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.20.0",
+    "twilio": "^4.23.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": [
+    "pharmacy",
+    "admin",
+    "postgresql",
+    "whatsapp"
+  ],
+  "author": "Siva Medicals",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pravinnpci/Siva-Medicals.git"
+  },
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/pravinnpci/Siva-Medicals/issues"
+  },
+  "homepage": "https://github.com/pravinnpci/Siva-Medicals#readme"
+}
