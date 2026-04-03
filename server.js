@@ -152,11 +152,18 @@ app.post('/admin/login', async (req, res) => {
       return res.render('admin/login', { error: 'Invalid credentials' });
     }
 
+    // Enforce admin role access
+    const normalizedRole = (user.role || '').toLowerCase();
+    if (!['admin', 'super_admin'].includes(normalizedRole)) {
+      return res.render('admin/login', { error: 'No admin privileges' });
+    }
+
     // Update last login
     await pool.query(
       'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
       [user.id]
     );
+    user.role = normalizedRole;
 
     req.session.userId = user.id;
     req.session.username = user.username;
@@ -325,19 +332,31 @@ app.post('/webhook/whatsapp', (req, res) => {
   });
 });
 
-// Contact form submission (from frontend)
-app.post('/api/contact', async (req, res) => {
+// Contact form submission (from frontend) with file upload support
+app.post('/api/contact', upload.single('prescription'), async (req, res) => {
   try {
     if (!pool) {
       return res.status(503).json({ error: 'Database not available' });
     }
 
     const { name, email, phone, subject, message, address, gpay, whatsapp } = req.body;
+    const prescriptionFile = req.file ? req.file.filename : null;
+
+    // Ensure required fields
+    if (!name || !email || !phone || !message) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Create optional prescription_path column if missing
+    await pool.query(`
+      ALTER TABLE contact_submissions
+      ADD COLUMN IF NOT EXISTS prescription_path VARCHAR(500)
+    `);
 
     await pool.query(`
-      INSERT INTO contact_submissions (name, email, phone, subject, message, address, gpay, whatsapp)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [name, email, phone, subject, message, address, gpay, whatsapp]);
+      INSERT INTO contact_submissions (name, email, phone, subject, message, address, gpay, whatsapp, prescription_path)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `, [name, email, phone, subject, message, address, gpay, whatsapp, prescriptionFile]);
 
     res.json({ success: true, message: 'Message sent successfully' });
   } catch (error) {
@@ -381,6 +400,40 @@ app.post('/admin/users', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Create user error:', error);
     res.status(500).json({ error: 'Failed to create user' });
+  }
+});
+
+// Delete user (super_admin only)
+app.delete('/admin/users/:id', requireAuth, async (req, res) => {
+  try {
+    if (req.session.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user id' });
+    }
+
+    // Prevent deletion of currently logged-in user
+    if (userId === req.session.userId) {
+      return res.status(400).json({ error: 'Cannot delete current logged-in user' });
+    }
+
+    // Prevent deleting default admin user
+    const { rows } = await pool.query('SELECT username FROM users WHERE id = $1', [userId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (rows[0].username === 'admin') {
+      return res.status(403).json({ error: 'Cannot delete default admin user' });
+    }
+
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ error: 'Failed to delete user' });
   }
 });
 
