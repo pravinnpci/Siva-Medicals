@@ -11,3 +11,9 @@ Stack Builder Installation Directory: C:\Program Files\PostgreSQL\18
 Installation Log: C:\Users\localadmin\AppData\Local\Temp\install-postgresql.log
 
 password: admin
+
+sivamedical super admin:
+===========
+admin
+admin@123
+

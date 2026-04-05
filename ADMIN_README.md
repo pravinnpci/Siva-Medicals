@@ -53,7 +53,9 @@ SESSION_SECRET=your-secret-key
 # Twilio (optional for WhatsApp)
 TWILIO_ACCOUNT_SID=your_sid
 TWILIO_AUTH_TOKEN=your_token
-TWILIO_WHATSAPP_NUMBER=your_number
+TWILIO_WHATSAPP_NUMBER=your_whatsapp_enabled_number
+# TWILIO_WHATSAPP_FROM is also supported as a synonym for the WhatsApp sender number
+TWILIO_WHATSAPP_FROM=your_whatsapp_enabled_number
 ```
 
 ### 4. Start the Server

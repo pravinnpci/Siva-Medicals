@@ -13,7 +13,10 @@
   <!-- NAVBAR -->
   <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
     <div class="container">
-      <a class="navbar-brand" href="index.html">🏥 Siva Medicals</a>
+      <a class="navbar-brand" href="index.html">
+        <img src="images/Logo- Sivamedical.png" alt="Siva Medicals Logo" class="site-logo">
+        <span class="brand-text">Siva Medicals</span>
+      </a>
       <button class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navmenu"></button>
       <div class="collapse navbar-collapse" id="navmenu">
         <ul class="navbar-nav ms-auto">
@@ -78,15 +81,10 @@
         <!-- CONTACT FORM -->
         <div class="col-lg-6">
           <div class="form-section">
-            <h3 class="mb-4">Send us a Message</h3>
-           <form id="contactForm"
-      action="http://localhost:3001/api/contact"
-      method="POST"
-      enctype="multipart/form-data">
-
-  <input type="hidden" name="access_key" value="819ad261-9010-4605-8bc6-734cfa3f5868">
-  <input type="hidden" name="subject" value="New prescription request from Siva Medicals">
-  <input type="hidden" name="redirect" value="https://yourdomain.com/thank-you.html"> <!-- optional -->
+            <h3 class="mb-4">Contact Siva Medicals</h3>
+            <p class="text-muted mb-4">Fill in your details and attach prescription files if available so we can respond faster.</p>
+            <form id="contactForm" novalidate>
+              <div id="formMessage" class="alert d-none" role="alert" aria-live="polite"></div>
 
   <div class="form-group">
     <label for="fullName">Full Name</label>
@@ -127,12 +125,13 @@
   </div>
 
   <div class="form-group" id="prescriptionFileGroup" style="display:none;">
-    <label for="prescriptionFile">Prescription Photo</label>
-    <input type="file" name="prescriptionFile" id="prescriptionFile" class="form-control" accept="image/*">
+    <label for="prescriptionFile">Upload Prescription / Medical Document</label>
+    <input type="file" name="prescription" id="prescriptionFile" class="form-control" accept="image/*,.pdf">
+    <small class="text-muted">Use this field when you have a prescription or medical report to share.</small>
   </div>
 
   <input type="hidden" name="gpay" value="9097732213">
-  <input type="hidden" name="whatsapp" value="9952930484">
+  <input type="hidden" name="whatsapp" value="9245464648">
 
   <button type="submit" class="btn btn-gold btn-lg w-100">Send Message</button>
 </form>
@@ -146,8 +145,9 @@
           <div class="mb-4">
             <h5>📞 Have Questions?</h5>
             <p>Contact our knowledgeable team for any queries about medicines, products, or services. We're always happy to help!</p>
-            <p><strong>Phone:</strong> 9952930484</p>
-            <p><strong>WhatsApp:</strong> 9952930484</p>
+            <p><strong>Phone:</strong> 9245464648</p>
+            <p><strong>WhatsApp:</strong> 9245464648</p>
+            <a href="https://wa.me/919245464648" target="_blank" class="btn btn-success btn-sm mt-3"><i class="fab fa-whatsapp me-2"></i>Chat on WhatsApp</a>
           </div>
 
           <div class="mb-4">
@@ -159,6 +159,101 @@
             <h5>📍 Our Address</h5>
             <p>1/47, Perumal Kovil Street, Madampakkam - Guduvancheri, Kanchipuram Dist - 603 202</p>
             <p class="text-muted small">Open: Mon - Sun, 8 AM - 10 PM</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAP & FAQ SECTION -->
+  <section class="section bg-light">
+    <div class="container">
+      <div class="row g-4 align-items-start">
+        <div class="col-lg-6" id="map">
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h3 class="mb-3">Find Us on Google Maps</h3>
+              <p class="text-muted">Our pharmacy is located in Madampakkam near Guduvancheri. Use the map below for directions and quick navigation.</p>
+              <div class="ratio ratio-16x9">
+                <iframe
+                  src="https://maps.google.com/maps?q=1%2F47%2C%20Perumal%20Kovil%20Street%2C%20Madampakkam%20Guduvancheri&t=&z=15&ie=UTF8&iwloc=&output=embed"
+                  style="border:0;"
+                  allowfullscreen=""
+                  loading="lazy"
+                  referrerpolicy="no-referrer-when-downgrade"
+                ></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-6">
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h3 class="mb-3">Frequently Asked Questions</h3>
+              <div class="accordion" id="faqAccordion">
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="faqHeadingOne">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqOne" aria-expanded="false" aria-controls="faqOne">
+                      How can I place an order?
+                    </button>
+                  </h2>
+                  <div id="faqOne" class="accordion-collapse collapse" aria-labelledby="faqHeadingOne" data-bs-parent="#faqAccordion">
+                    <div class="accordion-body">
+                      You can place an order by filling out the contact form on this page or by calling/WhatsApp us directly at 9952930484.
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="faqHeadingTwo">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqTwo" aria-expanded="false" aria-controls="faqTwo">
+                      Do you offer home delivery?
+                    </button>
+                  </h2>
+                  <div id="faqTwo" class="accordion-collapse collapse" aria-labelledby="faqHeadingTwo" data-bs-parent="#faqAccordion">
+                    <div class="accordion-body">
+                      Yes, we offer fast home delivery within the Madambakkam and Guduvancheri area. Please share your address and requirements in the form.
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="faqHeadingThree">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqThree" aria-expanded="false" aria-controls="faqThree">
+                      Can I send a prescription photo?
+                    </button>
+                  </h2>
+                  <div id="faqThree" class="accordion-collapse collapse" aria-labelledby="faqHeadingThree" data-bs-parent="#faqAccordion">
+                    <div class="accordion-body">
+                      Yes, select "With Prescription" in the category and upload your prescription photo before submitting the form.
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="faqHeadingFour">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqFour" aria-expanded="false" aria-controls="faqFour">
+                      What payment methods do you accept?
+                    </button>
+                  </h2>
+                  <div id="faqFour" class="accordion-collapse collapse" aria-labelledby="faqHeadingFour" data-bs-parent="#faqAccordion">
+                    <div class="accordion-body">
+                      We accept GPay payments at 9097732213, and cash payments at the store. For quick assistance, message us on WhatsApp.
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="faqHeadingFive">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqFive" aria-expanded="false" aria-controls="faqFive">
+                      What are your store timings?
+                    </button>
+                  </h2>
+                  <div id="faqFive" class="accordion-collapse collapse" aria-labelledby="faqHeadingFive" data-bs-parent="#faqAccordion">
+                    <div class="accordion-body">
+                      Our store is open daily from 8 AM to 10 PM. You can also reach us by phone or WhatsApp anytime during business hours.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -194,8 +289,8 @@
           <p><i class="fas fa-phone"></i> Phone: <strong>9952930484</strong></p>
           <p><i class="fas fa-map-marker-alt"></i> Location: <strong>1/47, Perumal Kovil Street, Madampakkam - Guduvancheri, Kanchipuram Dist - 603 202</strong></p>
           <p><i class="fas fa-clock"></i> Hours: Mon-Sun, 8 AM - 10 PM</p>
-          <p><i class="fas fa-money-bill"></i> GPay: <strong>9097732213</strong></p>
-          <p><i class="fas fa-whatsapp"></i> WhatsApp: <strong>9952930484</strong></p>
+          <p><i class="fas fa-wallet"></i> GPay: <strong>9097732213</strong></p>
+          <p><i class="fab fa-whatsapp"></i> WhatsApp: <strong>9952930484</strong></p>
         </div>
       </div>
       <hr style="border-color: #555;">

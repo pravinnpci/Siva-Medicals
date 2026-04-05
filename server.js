@@ -48,12 +48,18 @@ if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
       process.env.TWILIO_AUTH_TOKEN
     );
     console.log('✅ Twilio client initialized');
+    console.log('📱 Twilio Account SID:', process.env.TWILIO_ACCOUNT_SID.substring(0, 10) + '...');
+    console.log('📱 WhatsApp Number:', process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_WHATSAPP_FROM);
   } catch (error) {
     console.warn('⚠️  Twilio initialization failed:', error.message);
     console.warn('WhatsApp features will be disabled');
   }
 } else {
-  console.warn('⚠️  Twilio credentials not found - WhatsApp features disabled');
+  console.warn('⚠️  Twilio credentials not found');
+  console.warn('   - TWILIO_ACCOUNT_SID:', process.env.TWILIO_ACCOUNT_SID ? 'Found' : 'Missing');
+  console.warn('   - TWILIO_AUTH_TOKEN:', process.env.TWILIO_AUTH_TOKEN ? 'Found' : 'Missing');
+  console.warn('   - TWILIO_WHATSAPP_NUMBER:', process.env.TWILIO_WHATSAPP_NUMBER ? 'Found' : 'Missing');
+  console.warn('WhatsApp features will be disabled');
 }
 
 // Middleware
@@ -82,6 +88,7 @@ app.set('views', path.join(__dirname, 'views'));
 
 // Static files
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/images', express.static(path.join(__dirname, 'images')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // File upload configuration
@@ -116,6 +123,31 @@ const upload = multer({
     }
   }
 });
+
+function formatWhatsAppNumber(rawNumber) {
+  if (!rawNumber) return null;
+
+  let cleaned = rawNumber.toString().trim();
+  cleaned = cleaned.replace(/[^0-9+]/g, '');
+
+  if (cleaned.startsWith('+')) {
+    return `whatsapp:${cleaned}`;
+  }
+
+  if (cleaned.startsWith('0')) {
+    cleaned = cleaned.replace(/^0+/, '');
+  }
+
+  if (cleaned.length === 10) {
+    return `whatsapp:+91${cleaned}`;
+  }
+
+  if (cleaned.length === 11 && cleaned.startsWith('1')) {
+    return `whatsapp:+${cleaned}`;
+  }
+
+  return `whatsapp:+${cleaned}`;
+}
 
 // Authentication middleware
 function requireAuth(req, res, next) {
@@ -222,7 +254,8 @@ app.get('/admin/contacts', requireAuth, async (req, res) => {
   try {
     await pool.query(`
       ALTER TABLE contact_submissions
-      ADD COLUMN IF NOT EXISTS prescription_path VARCHAR(500)
+      ADD COLUMN IF NOT EXISTS prescription_path VARCHAR(500),
+      ADD COLUMN IF NOT EXISTS read_by VARCHAR(100)
     `);
 
     const result = await pool.query(`
@@ -241,10 +274,11 @@ app.post('/admin/contacts/:id/status', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
+    const readBy = status === 'unread' ? null : req.session.username || null;
 
     await pool.query(
-      'UPDATE contact_submissions SET status = $1 WHERE id = $2',
-      [status, id]
+      'UPDATE contact_submissions SET status = $1, read_by = $2 WHERE id = $3',
+      [status, readBy, id]
     );
 
     res.json({ success: true });
@@ -337,6 +371,18 @@ app.post('/webhook/whatsapp', (req, res) => {
   });
 });
 
+// Test Twilio WhatsApp connection (diagnostic endpoint)
+app.get('/api/twilio-test', (req, res) => {
+  const result = {
+    twilioClientReady: !!twilioClient,
+    accountSid: process.env.TWILIO_ACCOUNT_SID ? 'Configured' : 'Missing',
+    authToken: process.env.TWILIO_AUTH_TOKEN ? 'Configured' : 'Missing',
+    whatsappNumber: process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_WHATSAPP_FROM || 'Missing',
+    status: !twilioClient ? 'Not Ready - Check .env file' : 'Ready to Send'
+  };
+  res.json(result);
+});
+
 // Contact form submission (from frontend) with file upload support
 app.post('/api/contact', upload.single('prescription'), async (req, res) => {
   try {
@@ -367,7 +413,99 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     `, [name, email, phone, subject, message, address, gpay, whatsapp, prescriptionPath, category]);
 
-    res.json({ success: true, message: 'Message sent successfully' });
+    let twilioStatus = 'not_sent';
+    let twilioError = null;
+    let twilioOwnerStatus = 'not_sent';
+    let twilioCustomerStatus = 'not_sent';
+    let twilioOwnerError = null;
+    let twilioCustomerError = null;
+
+    const whatsappFrom = process.env.TWILIO_WHATSAPP_FROM || process.env.TWILIO_WHATSAPP_NUMBER;
+    const websiteWhatsappNumber = process.env.WEBSITE_WHATSAPP_NUMBER || whatsapp || '9245464648';
+    const ownerRecipient = formatWhatsAppNumber(websiteWhatsappNumber);
+
+    console.log('\n🔍 WhatsApp Send Debug:');
+    console.log('   Twilio Client Ready:', !!twilioClient);
+    console.log('   WhatsApp From Number:', whatsappFrom);
+    console.log('   Website Owner WhatsApp Number:', websiteWhatsappNumber);
+    console.log('   Owner Recipient:', ownerRecipient);
+    console.log('   Customer Phone:', phone);
+    
+    if (twilioClient && whatsappFrom) {
+      try {
+        const customerRecipient = formatWhatsAppNumber(phone);
+        console.log('   Formatted Customer Recipient:', customerRecipient);
+
+        if (!customerRecipient) {
+          throw new Error('Failed to format customer phone number: ' + phone);
+        }
+        if (!ownerRecipient) {
+          throw new Error('Failed to format website owner phone number: ' + websiteWhatsappNumber);
+        }
+
+        const customerBody = `Hello ${name}, this is Siva Medicals. We have received your ${category.replace(/_/g, ' ')} request and will respond shortly. Reply to this message if you need immediate help.`;
+        const ownerBody = `Siva Medicals - New website contact request:\nName: ${name}\nEmail: ${email}\nPhone: ${phone}\nCategory: ${category.replace(/_/g, ' ')}\nAddress: ${address}\nMessage: ${message}\nPrescription: ${prescriptionPath ? 'Yes' : 'No'}${prescriptionPath ? `\nPrescription Link: ${req.protocol}://${req.get('host')}${prescriptionPath}` : ''}`;
+
+        console.log('   Sending owner WhatsApp notification...');
+        const ownerMessage = await twilioClient.messages.create({
+          from: `whatsapp:${whatsappFrom.replace(/^whatsapp:/, '')}`,
+          to: ownerRecipient,
+          body: ownerBody
+        });
+        twilioOwnerStatus = 'sent';
+        console.log('✅ Owner WhatsApp notification sent:', ownerMessage.sid);
+      } catch (error) {
+        twilioOwnerStatus = 'failed';
+        twilioOwnerError = error.message;
+        console.error('❌ Owner WhatsApp notification failed:');
+        console.error('   Error:', error.message);
+        console.error('   Code:', error.code);
+        console.error('   Status:', error.status);
+      }
+
+      try {
+        const customerRecipient = formatWhatsAppNumber(phone);
+        const customerBody = `Hello ${name}, thank you for contacting Siva Medicals. We have received your ${category.replace(/_/g, ' ')} request and will respond shortly. Reply to this message if you need immediate help.`;
+
+        console.log('   Sending customer WhatsApp confirmation...');
+        const customerMessage = await twilioClient.messages.create({
+          from: `whatsapp:${whatsappFrom.replace(/^whatsapp:/, '')}`,
+          to: customerRecipient,
+          body: customerBody
+        });
+        twilioCustomerStatus = 'sent';
+        console.log('✅ Customer WhatsApp confirmation sent:', customerMessage.sid);
+      } catch (error) {
+        twilioCustomerStatus = 'failed';
+        twilioCustomerError = error.message;
+        console.error('❌ Customer WhatsApp confirmation failed:');
+        console.error('   Error:', error.message);
+        console.error('   Code:', error.code);
+        console.error('   Status:', error.status);
+      }
+
+      if (twilioOwnerStatus === 'sent' || twilioCustomerStatus === 'sent') {
+        twilioStatus = 'sent';
+      } else {
+        twilioStatus = 'failed';
+        twilioError = twilioOwnerError || twilioCustomerError;
+      }
+    } else {
+      console.warn('⚠️  WhatsApp sending skipped - Client or number not configured');
+    }
+
+    res.json({
+      success: true,
+      message: 'Message sent successfully',
+      whatsapp: {
+        enabled: !!twilioClient && !!whatsappFrom,
+        status: twilioStatus,
+        ownerStatus: twilioOwnerStatus,
+        customerStatus: twilioCustomerStatus,
+        ownerError: twilioOwnerError,
+        customerError: twilioCustomerError
+      }
+    });
   } catch (error) {
     console.error('Contact form error:', error);
     res.status(500).json({ error: 'Failed to send message' });
