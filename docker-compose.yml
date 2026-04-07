@@ -1,0 +1,61 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: siva_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-your_password}
+      POSTGRES_DB: ${DB_NAME:-siva_medicals}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./backend/node_modules/connect-pg-simple/table.sql:/docker-entrypoint-initdb.d/10-session.sql:ro
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    image: pravinnpci/siva-backend:latest
+    container_name: siva_backend
+    restart: always
+    environment:
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-your_password}@db:5432/${DB_NAME:-siva_medicals}
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-siva_medicals}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-your_password}
+      SESSION_SECRET: ${SESSION_SECRET:-your-secret-key}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_WHATSAPP_NUMBER: ${TWILIO_WHATSAPP_NUMBER}
+      TWILIO_WHATSAPP_FROM: ${TWILIO_WHATSAPP_FROM}
+      WEBSITE_WHATSAPP_NUMBER: ${WEBSITE_WHATSAPP_NUMBER}
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend/views:/app/views
+      - ./backend/public:/app/public
+      - ./frontend/images:/app/images
+      - ./backend/uploads:/app/uploads
+
+  frontend:
+    build: ./frontend
+    image: pravinnpci/siva-frontend:latest
+    container_name: siva_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

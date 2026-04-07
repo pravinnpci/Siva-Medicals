@@ -1,0 +1,124 @@
+# Siva Medicals Website - Git Ignore File
+
+# ========================================
+# OPERATING SYSTEM
+# ========================================
+.DS_Store
+Thumbs.db
+.Trash-*
+*.tmp
+
+# ========================================
+# IDE & EDITOR
+# ========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.sublime-project
+.sublime-workspace
+*.code-workspace
+
+# ========================================
+# BUILD & DEPENDENCIES
+# ========================================
+node_modules/
+**/node_modules/
+dist/
+build/
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# ========================================
+# ENVIRONMENT VARIABLES
+# ========================================
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.staging.local
+.env.ci.local
+.env.development
+.env.test
+.env.production
+.env.staging
+.env.ci
+.env.js
+
+# ========================================
+# SENSITIVE FILES
+# ========================================
+credentials.json
+secrets.json
+keys/
+*.pem
+*.key
+.htaccess
+
+# ========================================
+# BACKUP FILES
+# ========================================
+*.bak
+*.backup
+*~
+*.swp
+.sass-cache/
+
+# ========================================
+# CACHE
+# ========================================
+.cache/
+.next/
+.nuxt/
+dist/
+.cache
+.parcel-cache
+
+# ========================================
+# TEST COVERAGE
+# ========================================
+coverage/
+.nyc_output/
+
+# ========================================
+# DEPLOYMENT
+# ========================================
+.netlify/
+.vercel/
+.now/
+
+# ========================================
+# LOCAL SETUP FILES
+# ========================================
+local-config.js
+local-settings.json
+debug.log
+
+# ========================================
+# TEMPORARY FILES
+# ========================================
+*.tmp
+**/uploads/
+temp/
+tmp/
+
+# ========================================
+# LARGE FILES
+# ========================================
+*.zip
+*.rar
+*.tar.gz
+
+# ========================================
+# SYSTEM FILES
+# ========================================
+.AppleDouble
+.LSOverride
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.env
+.env
