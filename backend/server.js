@@ -382,39 +382,6 @@ app.post('/admin/contacts/:id/status', requireAuth, async (req, res) => {
   }
 });
 
-// Delete contact submission
-app.delete('/admin/contacts/:id', requireAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // 1. Get contact details to check for an associated prescription file
-    const result = await pool.query('SELECT prescription_path FROM contact_submissions WHERE id = $1', [id]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Contact submission not found' });
-    }
-
-    const { prescription_path } = result.rows[0];
-
-    // 2. If a prescription file exists, delete it from the filesystem
-    if (prescription_path) {
-      // Remove leading slash to ensure path.join works correctly inside Docker/Linux
-      const filePath = path.join(__dirname, prescription_path.replace(/^\//, ''));
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    }
-
-    // 3. Remove the entry from the database
-    await pool.query('DELETE FROM contact_submissions WHERE id = $1', [id]);
-
-    res.json({ success: true, message: 'Contact submission deleted successfully' });
-  } catch (error) {
-    console.error('Delete contact error:', error);
-    res.status(500).json({ error: 'Failed to delete contact submission' });
-  }
-});
-
 // File uploads management
 app.get('/admin/files', requireAuth, async (req, res) => {
   try {
