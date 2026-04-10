@@ -120,5 +120,23 @@ tmp/
 .AppleDesktop
 Network Trash Folder
 Temporary Items
+
+# ========================================
+# SENSITIVE & PROJECT SPECIFIC
+# ========================================
+*.csv
+accessKeys.csv
+Untitled*
+*.pem
 .env
-.env
+
+# ========================================
+# TERRAFORM
+# ========================================
+**/.terraform/
+*.tfstate*
+*.tfvars
+*.tfvars.json
+tfplan.out
+**/.terraform.lock.hcl
+*.tfplan
