@@ -154,7 +154,7 @@ echo resource "aws_subnet" "public" {
 echo   vpc_id            = aws_vpc.main.id
 echo   cidr_block        = "10.0.1.0/24"
 echo   map_public_ip_on_launch = true
-echo   availability_zone = "${var.aws_region}a"
+echo   availability_zone       = "${var.aws_region}a"
 echo   tags = {
 echo     Name = "${var.project_name}-PublicSubnet"
 echo   }
@@ -223,10 +223,10 @@ echo   }
 echo }
 echo.
 echo resource "aws_instance" "app_server" {
-echo   ami           = data.aws_ami.ubuntu.id
-echo   instance_type = var.instance_type
-echo   key_name      = aws_key_pair.ec2_key_pair.key_name # Use the key pair created by Terraform
-echo   subnet_id     = aws_subnet.public.id
+echo   ami                    = data.aws_ami.ubuntu.id
+echo   instance_type          = var.instance_type
+echo   key_name               = aws_key_pair.ec2_key_pair.key_name # Use the key pair created by Terraform
+echo   subnet_id              = aws_subnet.public.id
 echo   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
 echo.
 echo   user_data = ^<^<-EOF
@@ -268,8 +268,8 @@ echo }
 echo.
 echo resource "aws_s3_bucket_acl" "data_bucket_acl" {
 echo   depends_on = [aws_s3_bucket_ownership_controls.data_bucket_oc]
-echo   bucket = aws_s3_bucket.data_bucket.id
-echo   acl    = "private"
+echo   bucket     = aws_s3_bucket.data_bucket.id
+echo   acl        = "private"
 echo }
 echo.
 echo resource "random_id" "bucket_suffix" {

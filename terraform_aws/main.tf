@@ -46,7 +46,7 @@ resource "aws_subnet" "public" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.1.0/24"
   map_public_ip_on_launch = true
-  availability_zone = "${var.aws_region}a"
+  availability_zone       = "${var.aws_region}a"
   tags = {
     Name = "${var.project_name}-PublicSubnet"
   }
@@ -115,10 +115,10 @@ resource "aws_security_group" "ec2_sg" {
 }
 
 resource "aws_instance" "app_server" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = var.instance_type
-  key_name      = aws_key_pair.ec2_key_pair.key_name # Use the key pair created by Terraform
-  subnet_id     = aws_subnet.public.id
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = var.instance_type
+  key_name               = aws_key_pair.ec2_key_pair.key_name # Use the key pair created by Terraform
+  subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
 
   user_data = <<-EOF
@@ -160,8 +160,8 @@ resource "aws_s3_bucket_ownership_controls" "data_bucket_oc" {
 
 resource "aws_s3_bucket_acl" "data_bucket_acl" {
   depends_on = [aws_s3_bucket_ownership_controls.data_bucket_oc]
-  bucket = aws_s3_bucket.data_bucket.id
-  acl    = "private"
+  bucket     = aws_s3_bucket.data_bucket.id
+  acl        = "private"
 }
 
 resource "random_id" "bucket_suffix" {
