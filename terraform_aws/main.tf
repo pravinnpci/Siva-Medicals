@@ -24,8 +24,8 @@ resource "tls_private_key" "rsa_key" {
 
 # Save the private key to a local file
 resource "local_file" "private_key" {
-  content  = tls_private_key.rsa_key.private_key_pem
-  filename = "sivamedicals_ec2_key.pem"
+  content         = tls_private_key.rsa_key.private_key_pem
+  filename        = "sivamedicals_ec2_key.pem"
   file_permission = "0400" # Important for SSH access
 }
 
@@ -43,8 +43,8 @@ resource "aws_vpc" "main" {
 }
 
 resource "aws_subnet" "public" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.1.0/24"
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
   map_public_ip_on_launch = true
   availability_zone       = "${var.aws_region}a"
   tags = {

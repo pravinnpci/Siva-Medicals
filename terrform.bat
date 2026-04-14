@@ -132,8 +132,8 @@ echo }
 echo.
 echo # Save the private key to a local file
 echo resource "local_file" "private_key" {
-echo   content  = tls_private_key.rsa_key.private_key_pem
-echo   filename = "sivamedicals_ec2_key.pem"
+echo   content         = tls_private_key.rsa_key.private_key_pem
+echo   filename        = "sivamedicals_ec2_key.pem"
 echo   file_permission = "0400" # Important for SSH access
 echo }
 echo.
