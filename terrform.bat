@@ -144,6 +144,37 @@ echo   key_name   = "${var.project_name}-ec2-key"
 echo   public_key = tls_private_key.rsa_key.public_key_openssh
 echo }
 echo.
+echo # IAM Role for S3 Access
+echo resource "aws_iam_role" "ec2_s3_role" {
+echo   name = "${var.project_name}-S3Role"
+echo   assume_role_policy = jsonencode^( {
+echo     Version = "2012-10-17"
+echo     Statement = [{
+echo       Action = "sts:AssumeRole"
+echo       Effect = "Allow"
+echo       Principal = { Service = "ec2.amazonaws.com" }
+echo     }]
+echo   } ^)
+echo }
+echo.
+echo resource "aws_iam_role_policy" "s3_policy" {
+echo   name = "${var.project_name}-S3Policy"
+echo   role = aws_iam_role.ec2_s3_role.id
+echo   policy = jsonencode^( {
+echo     Version = "2012-10-17"
+echo     Statement = [{
+echo       Effect = "Allow"
+echo       Action = ["s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+echo       Resource = [aws_s3_bucket.data_bucket.arn, "${aws_s3_bucket.data_bucket.arn}/*"]
+echo     }]
+echo   } ^)
+echo }
+echo.
+echo resource "aws_iam_instance_profile" "s3_profile" {
+echo   name = "${var.project_name}-S3Profile"
+echo   role = aws_iam_role.ec2_s3_role.name
+echo }
+echo.
 echo resource "aws_vpc" "main" {
 echo   cidr_block = "10.0.0.0/16"
 echo   tags       = {
@@ -229,11 +260,12 @@ echo   instance_type          = var.instance_type
 echo   key_name               = aws_key_pair.ec2_key_pair.key_name # Use the key pair created by Terraform
 echo   subnet_id              = aws_subnet.public.id
 echo   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
+echo   iam_instance_profile   = aws_iam_instance_profile.s3_profile.name
 echo.
 echo   user_data = ^<^<-EOF
 echo               #!/bin/bash
 echo               sudo apt-get update
-echo               sudo apt-get install -y docker.io nginx
+echo               sudo apt-get install -y docker.io nginx s3fs
 echo               
 echo               # Mount EBS Volume for Postgres Data
 echo               # t3 instances use NVMe, /dev/sdh usually becomes /dev/nvme1n1
@@ -247,6 +279,14 @@ echo                 mount /dev/$DEVICE /mnt/postgres_data
 echo                 echo "/dev/$DEVICE /mnt/postgres_data ext4 defaults,nofail 0 2" ^>^> /etc/fstab
 echo               fi
 echo.
+echo               # Mount S3 Bucket for Uploads
+echo               mkdir -p /mnt/s3_uploads
+echo               sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
+echo               echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com 0 0" ^>^> /etc/fstab
+echo               mount /mnt/s3_uploads
+echo               mkdir -p /mnt/s3_uploads/uploads
+echo               chmod 777 /mnt/s3_uploads/uploads
+echo.
 echo               sudo systemctl start docker
 echo               sudo systemctl enable docker
 echo               sudo usermod -aG docker ubuntu
@@ -259,7 +299,7 @@ echo                 postgres:14
 echo.
 echo               # Pull and Run Siva Medicals App
 echo               docker pull pravinnpci/siva-medicals:latest
-echo               docker run -d --name siva-app -p 3001:3001 --link postgres-db:db -e DB_HOST=db -e DB_PASSWORD=admin123 pravinnpci/siva-medicals:latest
+echo               docker run -d --name siva-app -p 3001:3001 -v /mnt/s3_uploads/uploads:/app/uploads --link postgres-db:db -e DB_HOST=db -e DB_PASSWORD=admin123 pravinnpci/siva-medicals:latest
 echo.
 echo               # Configure Nginx as Reverse Proxy
 echo               cat ^> /etc/nginx/sites-available/default ^<^<NX
@@ -268,6 +308,9 @@ echo                   listen 80;
 echo                   location / {
 echo                       proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/frontend/;
 echo                       proxy_set_header Host ${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
+echo                   }
+echo                   location /uploads {
+echo                       alias /mnt/s3_uploads/uploads/;
 echo                   }
 echo                   location /api {
 echo                       proxy_pass http://localhost:3001;
@@ -406,14 +449,18 @@ if exist "sivamedicals_ec2_key.pem" icacls "sivamedicals_ec2_key.pem" /inheritan
 
 echo.
 echo Applying Terraform changes...
-echo Type 'yes' and press Enter to confirm the creation of resources.
 terraform apply -auto-approve "tfplan.out"
 
 echo.
+for /f "tokens=*" %%i in ('terraform output -raw instance_id') do set "ACTUAL_INSTANCE_ID=%%i"
+if defined ACTUAL_INSTANCE_ID (
+    echo Ensuring instance !ACTUAL_INSTANCE_ID! is started...
+    aws ec2 start-instances --instance-ids !ACTUAL_INSTANCE_ID! --region %AWS_REGION% >nul 2>&1
+)
+
 echo Syncing frontend files to S3...
-for /f "tokens=*" %%i in ('terraform output -raw s3_bucket_name') do set "DYNAMIC_BUCKET_NAME=%%i"
-if defined DYNAMIC_BUCKET_NAME (
-    aws s3 sync "%BASE_DIR%frontend" s3://%DYNAMIC_BUCKET_NAME%/frontend --delete --region %AWS_REGION%
+for /f "tokens=*" %%i in ('terraform output -raw s3_bucket_name') do (
+    aws s3 sync "%BASE_DIR%frontend" s3://%%i/frontend --delete --region %AWS_REGION%
 )
 
 echo.
@@ -424,10 +471,6 @@ echo Keep this file secure, as it is required to SSH into your EC2 instance.
 echo Remember to manage your EC2 instance (stop/start) to stay within free tier limits.
 
 echo.
-:: Capture the instance ID from terraform output to manage its state
-set "ACTUAL_INSTANCE_ID="
-for /f "tokens=*" %%i in ('terraform output -raw instance_id') do set "ACTUAL_INSTANCE_ID=%%i"
-
 if defined ACTUAL_INSTANCE_ID (
     echo Instance ID: %ACTUAL_INSTANCE_ID%
     :: Clear variable to ensure fresh input

@@ -35,6 +35,37 @@ resource "aws_key_pair" "ec2_key_pair" {
   public_key = tls_private_key.rsa_key.public_key_openssh
 }
 
+# IAM Role for S3 Access
+resource "aws_iam_role" "ec2_s3_role" {
+  name = "${var.project_name}-S3Role"
+  assume_role_policy = jsonencode( {
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
+  } )
+}
+
+resource "aws_iam_role_policy" "s3_policy" {
+  name = "${var.project_name}-S3Policy"
+  role = aws_iam_role.ec2_s3_role.id
+  policy = jsonencode( {
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = ["s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+      Resource = [aws_s3_bucket.data_bucket.arn, "${aws_s3_bucket.data_bucket.arn}/*"]
+    }]
+  } )
+}
+
+resource "aws_iam_instance_profile" "s3_profile" {
+  name = "${var.project_name}-S3Profile"
+  role = aws_iam_role.ec2_s3_role.name
+}
+
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
   tags       = {
@@ -120,11 +151,12 @@ resource "aws_instance" "app_server" {
   key_name               = aws_key_pair.ec2_key_pair.key_name # Use the key pair created by Terraform
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
+  iam_instance_profile   = aws_iam_instance_profile.s3_profile.name
 
   user_data = <<-EOF
               #/bin/bash
               sudo apt-get update
-              sudo apt-get install -y docker.io nginx
+              sudo apt-get install -y docker.io nginx s3fs
 ECHO is off.
               # Mount EBS Volume for Postgres Data
               # t3 instances use NVMe, /dev/sdh usually becomes /dev/nvme1n1
@@ -138,6 +170,14 @@ ECHO is off.
                 echo "/dev/$DEVICE /mnt/postgres_data ext4 defaults,nofail 0 2" >> /etc/fstab
               fi
 
+              # Mount S3 Bucket for Uploads
+              mkdir -p /mnt/s3_uploads
+              sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
+              echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com 0 0" >> /etc/fstab
+              mount /mnt/s3_uploads
+              mkdir -p /mnt/s3_uploads/uploads
+              chmod 777 /mnt/s3_uploads/uploads
+
               sudo systemctl start docker
               sudo systemctl enable docker
               sudo usermod -aG docker ubuntu
@@ -150,7 +190,7 @@ ECHO is off.
 
               # Pull and Run Siva Medicals App
               docker pull pravinnpci/siva-medicals:latest
-              docker run -d --name siva-app -p 3001:3001 --link postgres-db:db -e DB_HOST=db -e DB_PASSWORD=admin123 pravinnpci/siva-medicals:latest
+              docker run -d --name siva-app -p 3001:3001 -v /mnt/s3_uploads/uploads:/app/uploads --link postgres-db:db -e DB_HOST=db -e DB_PASSWORD=admin123 pravinnpci/siva-medicals:latest
 
               # Configure Nginx as Reverse Proxy
               cat > /etc/nginx/sites-available/default <<NX
@@ -159,6 +199,9 @@ ECHO is off.
                   location / {
                       proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/frontend/;
                       proxy_set_header Host ${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
+                  }
+                  location /uploads {
+                      alias /mnt/s3_uploads/uploads/;
                   }
                   location /api {
                       proxy_pass http://localhost:3001;

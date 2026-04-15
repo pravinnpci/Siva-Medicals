@@ -1,4 +1,4 @@
-﻿// ========================================
+﻿﻿// ========================================
 // CONTACT FORM API SUBMISSION
 // ========================================
 
@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', function() {
       submitBtn.disabled = true;
 
       try {
-        const response = await fetch('http://localhost:3001/api/contact', {
+        const response = await fetch('http://18.60.246.115/api/contact', {
           method: 'POST',
           body: formData
         });
