@@ -252,7 +252,7 @@ echo.
 echo resource "aws_instance" "app_server" {
 echo   ami                    = data.aws_ami.ubuntu.id
 echo   instance_type          = var.instance_type
-echo   key_name               = aws_key_pair.ec2_key_pair.key_name # Use the key pair created by Terraform
+echo   key_name               = aws_key_pair.ec2_key_pair.key_name
 echo   subnet_id              = aws_subnet.public.id
 echo   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
 echo   iam_instance_profile   = aws_iam_instance_profile.s3_profile.name
@@ -403,6 +403,9 @@ echo }
 
 echo.
 echo All Terraform files created successfully in ./%TF_DIR%.
+echo Formatting Terraform files...
+terraform fmt
+
 echo Initializing Terraform...
 terraform init
 
