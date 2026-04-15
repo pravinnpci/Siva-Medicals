@@ -472,6 +472,11 @@ echo Remember to manage your EC2 instance (stop/start) to stay within free tier 
 
 echo.
 if defined ACTUAL_INSTANCE_ID (
+    if /i "%CI%"=="true" (
+        echo [CI] Running in automated environment. Skipping interactive cost-saving prompt.
+        goto :end_script
+    )
+
     echo Instance ID: %ACTUAL_INSTANCE_ID%
     :: Clear variable to ensure fresh input
     set "USER_DECISION="
@@ -489,5 +494,6 @@ if defined ACTUAL_INSTANCE_ID (
     echo Warning: Could not retrieve Instance ID from Terraform outputs.
 )
 
-pause
+:end_script
+if /i not "%CI%"=="true" pause
 endlocal
