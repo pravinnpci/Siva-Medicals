@@ -288,7 +288,7 @@ echo     cat ^> /etc/nginx/sites-available/default ^<^<NX
 echo     server {
 echo         listen 80;
 echo         location / {
-echo             proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
+echo             proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/frontend/;
 echo             proxy_set_header Host ${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
 echo         }
 echo         location /uploads {
