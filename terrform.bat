@@ -145,7 +145,7 @@ echo }
 echo.
 echo resource "aws_vpc" "main" {
 echo   cidr_block = "10.0.0.0/16"
-echo   tags = {
+echo   tags       = {
 echo     Name = "${var.project_name}-VPC"
 echo   }
 echo }
@@ -155,14 +155,14 @@ echo   vpc_id            = aws_vpc.main.id
 echo   cidr_block        = "10.0.1.0/24"
 echo   map_public_ip_on_launch = true
 echo   availability_zone       = "${var.aws_region}a"
-echo   tags = {
+echo   tags                    = {
 echo     Name = "${var.project_name}-PublicSubnet"
 echo   }
 echo }
 echo.
 echo resource "aws_internet_gateway" "gw" {
 echo   vpc_id = aws_vpc.main.id
-echo   tags = {
+echo   tags   = {
 echo     Name = "${var.project_name}-IGW"
 echo   }
 echo }
@@ -174,7 +174,7 @@ echo   route {
 echo     cidr_block = "0.0.0.0/0"
 echo     gateway_id = aws_internet_gateway.gw.id
 echo   }
-echo   tags = {
+echo   tags   = {
 echo     Name = "${var.project_name}-RouteTable"
 echo   }
 echo }
@@ -254,7 +254,7 @@ echo }
 echo.
 echo resource "aws_s3_bucket" "data_bucket" {
 echo   bucket = "${var.s3_bucket_name_prefix}-${var.aws_region}-${random_id.bucket_suffix.hex}"
-echo   tags = {
+echo   tags   = {
 echo     Name = "${var.project_name}-DataBucket"
 echo   }
 echo }
@@ -275,7 +275,7 @@ echo }
 echo.
 echo resource "aws_s3_bucket_policy" "allow_public_access" {
 echo   bucket = aws_s3_bucket.data_bucket.id
-echo   policy = jsonencode({
+echo   policy = jsonencode^({
 echo     Version = "2012-10-17"
 echo     Statement = [{
 echo       Effect    = "Allow"
@@ -283,7 +283,7 @@ echo       Principal = "*"
 echo       Action    = "s3:GetObject"
 echo       Resource  = "${aws_s3_bucket.data_bucket.arn}/*"
 echo     }]
-echo   })
+echo   ^})
 echo }
 echo.
 echo resource "aws_s3_bucket_ownership_controls" "data_bucket_oc" {
@@ -307,7 +307,7 @@ echo resource "aws_ebs_volume" "data_volume" {
 echo   availability_zone = aws_instance.app_server.availability_zone
 echo   size              = var.ebs_volume_size_gb
 echo   type              = "gp3"
-echo   tags = {
+echo   tags              = {
 echo     Name = "${var.project_name}-DataVolume"
 echo   }
 echo }
@@ -370,6 +370,13 @@ echo.
 echo Applying Terraform changes...
 echo Type 'yes' and press Enter to confirm the creation of resources.
 terraform apply -auto-approve "tfplan.out"
+
+echo.
+echo Syncing frontend files to S3...
+for /f "tokens=*" %%i in ('terraform output -raw s3_bucket_name') do set "DYNAMIC_BUCKET_NAME=%%i"
+if defined DYNAMIC_BUCKET_NAME (
+    aws s3 sync .. s3://%DYNAMIC_BUCKET_NAME% --exclude "terraform_aws/*" --exclude ".github/*" --exclude "Others/*" --delete --region %AWS_REGION%
+)
 
 echo.
 echo Terraform deployment complete!

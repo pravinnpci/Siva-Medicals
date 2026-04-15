@@ -63,6 +63,12 @@ jobs:
         run: terraform apply -auto-approve -input=false
         working-directory: ./terraform_aws
 
+      - name: Get S3 Bucket Name
+        id: bucket_name
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: echo "NAME=$(terraform output -raw s3_bucket_name)" >> $GITHUB_OUTPUT
+        working-directory: ./terraform_aws
+
       - name: Sync Website to S3 (Optional)
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: aws s3 sync . s3://${{ secrets.S3_BUCKET_NAME }} --exclude "terraform_aws/*" --exclude ".github/*" --exclude "Others/*" --delete
+        run: aws s3 sync . s3://${{ steps.bucket_name.outputs.NAME }} --exclude "terraform_aws/*" --exclude ".github/*" --exclude "Others/*" --delete --region ${{ env.AWS_REGION }}
