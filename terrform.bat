@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 
 :: --- Configuration Variables (can be changed here) ---
 set "BASE_DIR=%~dp0"
@@ -314,7 +314,7 @@ echo }
 echo.
 echo resource "aws_s3_bucket_policy" "allow_public_access" {
 echo   bucket = aws_s3_bucket.data_bucket.id
-echo   policy = jsonencode^({
+echo   policy = jsonencode^( {
 echo     Version = "2012-10-17"
 echo     Statement = [{
 echo       Effect    = "Allow"
@@ -322,9 +322,8 @@ echo       Principal = "*"
 echo       Action    = "s3:GetObject"
 echo       Resource  = "${aws_s3_bucket.data_bucket.arn}/*"
 echo     }]
-echo   ^})
+echo   } ^)
 echo }
-echo.
 echo resource "aws_s3_bucket_ownership_controls" "data_bucket_oc" {
 echo   bucket = aws_s3_bucket.data_bucket.id
 echo   rule {
@@ -435,7 +434,7 @@ if defined ACTUAL_INSTANCE_ID (
     set "USER_DECISION="
     set /p USER_DECISION="Do you want to STOP the instance now to save costs? (Y/N): "
 
-    if /i "%USER_DECISION%"=="Y" (
+    if /i "!USER_DECISION!"=="Y" (
         echo.
         echo Sending stop request to AWS for instance %ACTUAL_INSTANCE_ID%...
         aws ec2 stop-instances --instance-ids %ACTUAL_INSTANCE_ID% --region %AWS_REGION%
