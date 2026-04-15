@@ -27,6 +27,6 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ap-south-2
           CI: "true"
-        run: |
-          terraform -version
+        run: | # Ensure Terraform is in PATH for the batch script
+          set PATH=%PATH%;${{ steps.setup-tf.outputs.terraform-path }}
           terrform.bat

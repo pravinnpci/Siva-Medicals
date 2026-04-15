@@ -267,7 +267,7 @@ echo               mkdir -p /mnt/s3_uploads
 echo               sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
 echo               echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com 0 0" ^>^> /etc/fstab
 echo               mount /mnt/s3_uploads
-echo               mkdir -p /mnt/s3_uploads/uploads
+echo               mkdir -p /mnt/s3_uploads/backend/upload
 echo               chmod 777 /mnt/s3_uploads/backend/upload
 echo.
 echo               sudo systemctl start docker
@@ -365,21 +365,6 @@ echo.
 echo resource "random_id" "bucket_suffix" {
 echo   byte_length = 8
 echo }
-echo.
-echo resource "aws_ebs_volume" "data_volume" {
-echo   availability_zone = aws_instance.app_server.availability_zone
-echo   size              = var.ebs_volume_size_gb
-echo   type              = "gp3"
-echo   tags              = {
-echo     Name = "${var.project_name}-DataVolume"
-echo   }
-echo }
-echo.
-echo resource "aws_volume_attachment" "ebs_att" {
-echo   device_name = "/dev/sdh"
-echo   volume_id   = aws_ebs_volume.data_volume.id
-echo   instance_id = aws_instance.app_server.id
-echo }
 ) > main.tf
 
 echo.
@@ -440,6 +425,11 @@ if defined ACTUAL_INSTANCE_ID (
     aws ec2 start-instances --instance-ids !ACTUAL_INSTANCE_ID! --region %AWS_REGION% >nul 2>&1
 )
 
+echo.
+echo Ensuring local backend/upload directory exists for S3 sync...
+if not exist "%BASE_DIR%backend\upload" (
+    mkdir "%BASE_DIR%backend\upload"
+)
 echo Syncing frontend files to S3...
 for /f "tokens=*" %%i in ('terraform output -raw s3_bucket_name') do (
     aws s3 sync "%BASE_DIR%frontend" s3://%%i/frontend --delete --region %AWS_REGION%
