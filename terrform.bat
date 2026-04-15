@@ -44,7 +44,7 @@ echo.
 echo Creating versions.tf...
 (
 echo terraform {
-echo   required_version = "~> 1.0"
+echo   required_version = ">= 1.5.0"
 echo   required_providers {
 echo     aws = {
 echo       source  = "hashicorp/aws"
@@ -108,6 +108,12 @@ echo Creating main.tf...
 (
 echo provider "aws" {
 echo   region = var.aws_region
+echo }
+echo.
+echo # Handle S3 bucket: Import if exists, Create if not
+echo import {
+echo   to = aws_s3_bucket.data_bucket
+echo   id = "${var.s3_bucket_name_prefix}-${var.aws_region}-${random_id.bucket_suffix.hex}"
 echo }
 echo.
 echo # Dynamically find the latest Ubuntu 20.04 AMI for this region
