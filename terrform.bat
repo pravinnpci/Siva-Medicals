@@ -266,7 +266,7 @@ echo               cat ^> /etc/nginx/sites-available/default ^<^<NX
 echo               server {
 echo                   listen 80;
 echo                   location / {
-echo                       proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
+echo                       proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/frontend/;
 echo                       proxy_set_header Host ${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
 echo                   }
 echo                   location /api {
@@ -367,7 +367,7 @@ echo }
 echo.
 echo output "s3_website_url" {
 echo   description = "URL of the S3 static website"
-echo   value       = "http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/index.html"
+echo   value       = "http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/frontend/index.html"
 echo }
 echo.
 echo output "instance_id" {
@@ -413,7 +413,7 @@ echo.
 echo Syncing frontend files to S3...
 for /f "tokens=*" %%i in ('terraform output -raw s3_bucket_name') do set "DYNAMIC_BUCKET_NAME=%%i"
 if defined DYNAMIC_BUCKET_NAME (
-    aws s3 sync "%BASE_DIR%." s3://%DYNAMIC_BUCKET_NAME% --exclude "%TF_NAME%/*" --exclude ".github/*" --exclude "Others/*" --delete --region %AWS_REGION%
+    aws s3 sync "%BASE_DIR%frontend" s3://%DYNAMIC_BUCKET_NAME%/frontend --delete --region %AWS_REGION%
 )
 
 echo.
