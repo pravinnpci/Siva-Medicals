@@ -2,7 +2,9 @@
 setlocal
 
 :: --- Configuration Variables (can be changed here) ---
-set "TF_DIR=terraform_aws"
+set "BASE_DIR=%~dp0"
+set "TF_NAME=terraform_aws"
+set "TF_DIR=%BASE_DIR%%TF_NAME%"
 set "AWS_REGION=ap-south-2"  :: Changed to ap-south-2 (Hyderabad)
 
 set "EXISTING_EIP=18.60.246.115"
@@ -34,11 +36,10 @@ echo.
 echo Creating Terraform directory: %TF_DIR%
 if not exist "%TF_DIR%" (
     mkdir "%TF_DIR%"
-) else (
-    echo Directory "%TF_DIR%" already exists. Clearing old .tf files...
-    del "%TF_DIR%\*.tf" >nul 2>&1
 )
-cd "%TF_DIR%" || (echo Failed to change directory. Exiting. && exit /b 1)
+echo Clearing old .tf files...
+del /q "%TF_DIR%\*.tf" >nul 2>&1
+cd /d "%TF_DIR%" || (echo Failed to change directory. Exiting. && exit /b 1)
 
 echo.
 echo Creating versions.tf...
@@ -108,12 +109,6 @@ echo Creating main.tf...
 (
 echo provider "aws" {
 echo   region = var.aws_region
-echo }
-echo.
-echo # Handle S3 bucket: Import if exists, Create if not
-echo import {
-echo   to = aws_s3_bucket.data_bucket
-echo   id = "${var.s3_bucket_name_prefix}-${var.aws_region}-${random_id.bucket_suffix.hex}"
 echo }
 echo.
 echo # Dynamically find the latest Ubuntu 20.04 AMI for this region
@@ -388,12 +383,12 @@ echo }
 echo.
 echo output "ssh_key_path" {
 echo   description = "Path to the generated SSH private key file"
-echo   value       = "${path.cwd}/sivamedicals_ec2_key.pem"
+echo   value       = "${path.module}/sivamedicals_ec2_key.pem"
 echo }
 echo.
 echo output "ssh_command" {
 echo   description = "Command to SSH into the EC2 instance"
-echo   value       = "ssh -i \"./sivamedicals_ec2_key.pem\" ubuntu@${var.existing_eip}"
+echo   value       = "ssh -i \"${path.module}/sivamedicals_ec2_key.pem\" ubuntu@${var.existing_eip}"
 echo }
 ) > outputs.tf
 
@@ -404,7 +399,7 @@ terraform init
 
 echo.
 echo Planning Terraform changes...
-terraform plan -out=tfplan.out
+terraform plan -refresh=true -out=tfplan.out
 
 echo.
 echo Securing private key permissions (if file exists)...
@@ -419,7 +414,7 @@ echo.
 echo Syncing frontend files to S3...
 for /f "tokens=*" %%i in ('terraform output -raw s3_bucket_name') do set "DYNAMIC_BUCKET_NAME=%%i"
 if defined DYNAMIC_BUCKET_NAME (
-    aws s3 sync .. s3://%DYNAMIC_BUCKET_NAME% --exclude "terraform_aws/*" --exclude ".github/*" --exclude "Others/*" --delete --region %AWS_REGION%
+    aws s3 sync "%BASE_DIR%." s3://%DYNAMIC_BUCKET_NAME% --exclude "%TF_NAME%/*" --exclude ".github/*" --exclude "Others/*" --delete --region %AWS_REGION%
 )
 
 echo.

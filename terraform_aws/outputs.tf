@@ -20,10 +20,10 @@ output "s3_bucket_name" {
 
 output "ssh_key_path" {
   description = "Path to the generated SSH private key file"
-  value       = "${path.cwd}/sivamedicals_ec2_key.pem"
+  value       = "${path.module}/sivamedicals_ec2_key.pem"
 }
 
 output "ssh_command" {
   description = "Command to SSH into the EC2 instance"
-  value       = "ssh -i \"./sivamedicals_ec2_key.pem\" ubuntu@${var.existing_eip}"
+  value       = "ssh -i \"${path.module}/sivamedicals_ec2_key.pem\" ubuntu@${var.existing_eip}"
 }
