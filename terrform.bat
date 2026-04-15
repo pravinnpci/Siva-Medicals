@@ -15,12 +15,14 @@ set "EC2_INSTANCE_TYPE=t3.micro" :: t3.micro is the Free Tier eligible type in a
 set "EBS_VOLUME_SIZE_GB=20" :: Ensure this combined with other EBS usage stays within 30GB free tier
 
 echo.
-echo Checking for Terraform installation...
-where terraform >nul 2>&1
-if %errorlevel% neq 0 (
-    echo ERROR: Terraform is not found in your PATH. Please install Terraform and add it to your system PATH.
-    echo Exiting.
-    goto :eof
+if /i not "%CI%"=="true" (
+    echo Checking for Terraform installation...
+    where terraform >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo ERROR: Terraform is not found in your PATH. Please install Terraform and add it to your system PATH.
+        echo Exiting.
+        goto :eof
+    )
 )
 
 echo Checking for AWS CLI installation...
