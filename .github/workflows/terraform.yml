@@ -49,4 +49,4 @@ jobs:
 
       - name: Sync Website to S3 (Optional)
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: aws s3 sync . s3://${{ secrets.S3_BUCKET_NAME }} --exclude "terraform_aws/*" --exclude ".github/*"
+        run: aws s3 sync . s3://${{ secrets.S3_BUCKET_NAME }} --exclude "terraform_aws/*" --exclude ".github/*" --exclude "Others/*" --delete
