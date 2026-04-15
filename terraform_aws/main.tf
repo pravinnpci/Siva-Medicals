@@ -157,7 +157,7 @@ ECHO is off.
               server {
                   listen 80;
                   location / {
-                      proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
+                      proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/frontend/;
                       proxy_set_header Host ${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
                   }
                   location /api {
