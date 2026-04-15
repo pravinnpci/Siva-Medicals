@@ -163,8 +163,8 @@ ECHO is off.
               sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
               echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com 0 0" >> /etc/fstab
               mount /mnt/s3_uploads
-              mkdir -p /mnt/s3_uploads/backend/upload
-              chmod 777 /mnt/s3_uploads/backend/upload
+              mkdir -p /mnt/s3_uploads/backend/uploads
+              chmod 777 /mnt/s3_uploads/backend/uploads
 
               sudo systemctl start docker
               sudo systemctl enable docker
@@ -177,7 +177,7 @@ ECHO is off.
 
               # Pull and Run Siva Medicals App
               docker pull pravinnpci/siva-medicals:latest
-              docker run -d --name siva-app -p 3001:3001 -v /mnt/s3_uploads/backend/upload:/app/uploads --link postgres-db:db -e DB_HOST=db -e DB_PASSWORD=admin123 pravinnpci/siva-medicals:latest
+              docker run -d --name siva-app -p 3001:3001 -v /mnt/s3_uploads/backend/uploads:/app/uploads --link postgres-db:db -e DB_HOST=db -e DB_PASSWORD=admin123 pravinnpci/siva-medicals:latest
 
               # Configure Nginx as Reverse Proxy
               cat > /etc/nginx/sites-available/default <<NX
@@ -188,7 +188,7 @@ ECHO is off.
                       proxy_set_header Host ${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
                   }
                   location /uploads {
-                      alias /mnt/s3_uploads/backend/upload/;
+                      alias /mnt/s3_uploads/backend/uploads/;
                   }
                   location /api {
                       proxy_pass http://localhost:3001;
