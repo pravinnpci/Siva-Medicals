@@ -43,7 +43,9 @@ resource "aws_vpc" "main" {
 }
 
 resource "aws_subnet" "public" {
-  vpc_id            _ip_on= true
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  map_public_ip_on_launch = true
   availability_zone       = "${var.aws_region}a"
   tags = {
     Name = "${var.project_name}-PublicSubnet"
@@ -116,7 +118,7 @@ resource "aws_instance" "app_server" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
   key_name               = aws_key_pair.ec2_key_pair.key_name
-  subnet_id              = aws_subnet.publip
+  subnet_id              = aws_subnet.public.id
 
   user_data = <<-EOF
               #!/bin/bash
@@ -145,7 +147,7 @@ resource "aws_instance" "app_server" {
 
               # Pull and Run Siva Medicals App
               docker pull pravinnpci/siva-medicals:latest
-              docker run -d --name siva-app -p 80:80 --link postgres-db:db pravinnpci/siva-medicals:latest
+              docker run -d --name siva-app -p 80:3001 --link postgres-db:db pravinnpci/siva-medicals:latest
               EOF
 
   tags = {
