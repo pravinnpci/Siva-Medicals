@@ -135,13 +135,13 @@ echo }
 echo.
 echo # Upload the public key to AWS to create an EC2 Key Pair
 echo resource "aws_key_pair" "ec2_key_pair" {
-echo   key_name   = "${var.project_name}-ec2-key"
+echo   key_name   = "${var.project_name}-ec2-key-${random_id.bucket_suffix.hex}"
 echo   public_key = tls_private_key.rsa_key.public_key_openssh
 echo }
 echo.
 echo # IAM Role for S3 Access
 echo resource "aws_iam_role" "ec2_s3_role" {
-echo   name = "${var.project_name}-S3Role"
+echo   name = "${var.project_name}-S3Role-${random_id.bucket_suffix.hex}"
 echo   assume_role_policy = jsonencode^( {
 echo     Version = "2012-10-17"
 echo     Statement = [{
@@ -153,7 +153,7 @@ echo   } ^)
 echo }
 echo.
 echo resource "aws_iam_role_policy" "s3_policy" {
-echo   name = "${var.project_name}-S3Policy"
+echo   name = "${var.project_name}-S3Policy-${random_id.bucket_suffix.hex}"
 echo   role = aws_iam_role.ec2_s3_role.id
 echo   policy = jsonencode^({
 echo     Version = "2012-10-17"
@@ -166,7 +166,7 @@ echo   }^)
 echo }
 echo.
 echo resource "aws_iam_instance_profile" "s3_profile" {
-echo   name = "${var.project_name}-S3Profile"
+echo   name = "${var.project_name}-S3Profile-${random_id.bucket_suffix.hex}"
 echo   role = aws_iam_role.ec2_s3_role.name
 echo }
 echo.
@@ -338,6 +338,7 @@ echo   restrict_public_buckets = false
 echo }
 echo.
 echo resource "aws_s3_bucket_policy" "allow_public_access" {
+echo   depends_on = [aws_s3_bucket_public_access_block.data_bucket_access]
 echo   bucket = aws_s3_bucket.data_bucket.id
 echo   policy = jsonencode^({
 echo     Version = "2012-10-17"
