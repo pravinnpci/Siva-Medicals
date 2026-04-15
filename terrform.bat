@@ -232,10 +232,48 @@ echo.
 echo   user_data = ^<^<-EOF
 echo               #!/bin/bash
 echo               sudo apt-get update
-echo               sudo apt-get install -y docker.io
+echo               sudo apt-get install -y docker.io nginx
+echo               
+echo               # Mount EBS Volume for Postgres Data
+echo               # t3 instances use NVMe, /dev/sdh usually becomes /dev/nvme1n1
+echo               DEVICE=$^(lsblk -dno NAME ^| grep -v "nvme0n1" ^| head -n 1^)
+echo               if [ ! -z "$DEVICE" ]; then
+echo                 if ! blkid /dev/$DEVICE; then
+echo                   mkfs -t ext4 /dev/$DEVICE
+echo                 fi
+echo                 mkdir -p /mnt/postgres_data
+echo                 mount /dev/$DEVICE /mnt/postgres_data
+echo                 echo "/dev/$DEVICE /mnt/postgres_data ext4 defaults,nofail 0 2" ^>^> /etc/fstab
+echo               fi
+echo.
 echo               sudo systemctl start docker
 echo               sudo systemctl enable docker
 echo               sudo usermod -aG docker ubuntu
+echo.
+echo               # Run PostgreSQL with Persistence
+echo               docker run -d --name postgres-db \
+echo                 -v /mnt/postgres_data:/var/lib/postgresql/data \
+echo                 -e POSTGRES_PASSWORD=admin123 \
+echo                 postgres:14
+echo.
+echo               # Pull and Run Siva Medicals App
+echo               docker pull pravinnpci/siva-medicals:latest
+echo               docker run -d --name siva-app -p 3001:3001 --link postgres-db:db -e DB_HOST=db -e DB_PASSWORD=admin123 pravinnpci/siva-medicals:latest
+echo.
+echo               # Configure Nginx as Reverse Proxy
+echo               cat ^> /etc/nginx/sites-available/default ^<^<NX
+echo               server {
+echo                   listen 80;
+echo                   location / {
+echo                       proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
+echo                       proxy_set_header Host ${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
+echo                   }
+echo                   location /api {
+echo                       proxy_pass http://localhost:3001;
+echo                   }
+echo               }
+echo               NX
+echo               systemctl restart nginx
 echo               EOF
 echo.
 echo   tags = {
