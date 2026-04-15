@@ -12,6 +12,7 @@ set "EXISTING_EIP=18.60.246.115"
 set "PROJECT_NAME=SIVAMedicals"
 set "S3_BUCKET_PREFIX=siva-medicals-data-hyderabad" :: S3 bucket names must be globally unique
 set "EC2_INSTANCE_TYPE=t3.micro" :: t3.micro is the Free Tier eligible type in ap-south-2.
+set "EBS_VOLUME_SIZE_GB=20" :: Ensure this combined with other EBS usage stays within 30GB free tier
 
 echo.
 if /i not "%CI%"=="true" (
@@ -96,12 +97,6 @@ echo variable "s3_bucket_name_prefix" {
 echo   description = "Prefix for the S3 bucket name (must be globally unique)"
 echo   type        = string
 echo   default     = "%S3_BUCKET_PREFIX%"
-echo }
-echo.
-echo variable "ebs_volume_size_gb" {
-echo   description = "Size of the EBS volume in GB (stay within free tier 30GB)"
-echo   type        = number
-echo   default     = %EBS_VOLUME_SIZE_GB%
 echo }
 ) > variables.tf
 
@@ -298,7 +293,7 @@ echo                       proxy_pass http://${aws_s3_bucket.data_bucket.bucket_
 echo                       proxy_set_header Host ${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
 echo                   }
 echo                   location /uploads {
-echo                       alias /mnt/s3_uploads/uploads/;
+echo                       alias /mnt/s3_uploads/backend/upload/;
 echo                   }
 echo                   location /api {
 echo                       proxy_pass http://localhost:3001;

@@ -27,9 +27,3 @@ variable "s3_bucket_name_prefix" {
   type        = string
   default     = "siva-medicals-data-hyderabad"
 }
-
-variable "ebs_volume_size_gb" {
-  description = "Size of the EBS volume in GB (stay within free tier 30GB)"
-  type        = number
-  default     = 
-}

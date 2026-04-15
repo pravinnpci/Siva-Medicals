@@ -188,7 +188,7 @@ ECHO is off.
                       proxy_set_header Host ${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
                   }
                   location /uploads {
-                      alias /mnt/s3_uploads/uploads/;
+                      alias /mnt/s3_uploads/backend/upload/;
                   }
                   location /api {
                       proxy_pass http://localhost:3001;
