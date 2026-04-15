@@ -31,13 +31,13 @@ resource "local_file" "private_key" {
 
 # Upload the public key to AWS to create an EC2 Key Pair
 resource "aws_key_pair" "ec2_key_pair" {
-  key_name   = "${var.project_name}-ec2-key"
+  key_name   = "${var.project_name}-ec2-key-${random_id.bucket_suffix.hex}"
   public_key = tls_private_key.rsa_key.public_key_openssh
 }
 
 # IAM Role for S3 Access
 resource "aws_iam_role" "ec2_s3_role" {
-  name = "${var.project_name}-S3Role"
+  name = "${var.project_name}-S3Role-${random_id.bucket_suffix.hex}"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -49,7 +49,7 @@ resource "aws_iam_role" "ec2_s3_role" {
 }
 
 resource "aws_iam_role_policy" "s3_policy" {
-  name = "${var.project_name}-S3Policy"
+  name = "${var.project_name}-S3Policy-${random_id.bucket_suffix.hex}"
   role = aws_iam_role.ec2_s3_role.id
   policy = jsonencode({
     Version = "2012-10-17"
@@ -62,7 +62,7 @@ resource "aws_iam_role_policy" "s3_policy" {
 }
 
 resource "aws_iam_instance_profile" "s3_profile" {
-  name = "${var.project_name}-S3Profile"
+  name = "${var.project_name}-S3Profile-${random_id.bucket_suffix.hex}"
   role = aws_iam_role.ec2_s3_role.name
 }
 
@@ -184,7 +184,7 @@ ECHO is off.
     server {
         listen 80;
         location / {
-            proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
+            proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/frontend/;
             proxy_set_header Host ${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
         }
         location /uploads {
@@ -234,7 +234,8 @@ resource "aws_s3_bucket_public_access_block" "data_bucket_access" {
 }
 
 resource "aws_s3_bucket_policy" "allow_public_access" {
-  bucket = aws_s3_bucket.data_bucket.id
+  depends_on = [aws_s3_bucket_public_access_block.data_bucket_access]
+  bucket     = aws_s3_bucket.data_bucket.id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
