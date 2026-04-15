@@ -267,8 +267,8 @@ echo               mkdir -p /mnt/s3_uploads
 echo               sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
 echo               echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com 0 0" ^>^> /etc/fstab
 echo               mount /mnt/s3_uploads
-echo               mkdir -p /mnt/s3_uploads/backend/upload
-echo               chmod 777 /mnt/s3_uploads/backend/upload
+echo               mkdir -p /mnt/s3_uploads/backend/uploads
+echo               chmod 777 /mnt/s3_uploads/backend/uploads
 echo.
 echo               sudo systemctl start docker
 echo               sudo systemctl enable docker
@@ -281,7 +281,7 @@ echo                 postgres:14
 echo.
 echo               # Pull and Run Siva Medicals App
 echo               docker pull pravinnpci/siva-medicals:latest
-echo               docker run -d --name siva-app -p 3001:3001 -v /mnt/s3_uploads/backend/upload:/app/uploads --link postgres-db:db -e DB_HOST=db -e DB_PASSWORD=admin123 pravinnpci/siva-medicals:latest
+echo               docker run -d --name siva-app -p 3001:3001 -v /mnt/s3_uploads/backend/uploads:/app/uploads --link postgres-db:db -e DB_HOST=db -e DB_PASSWORD=admin123 pravinnpci/siva-medicals:latest
 echo.
 echo               # Configure Nginx as Reverse Proxy
 echo               cat ^> /etc/nginx/sites-available/default ^<^<NX
@@ -292,7 +292,7 @@ echo                       proxy_pass http://${aws_s3_bucket.data_bucket.bucket_
 echo                       proxy_set_header Host ${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
 echo                   }
 echo                   location /uploads {
-echo                       alias /mnt/s3_uploads/backend/upload/;
+echo                       alias /mnt/s3_uploads/backend/uploads/;
 echo                   }
 echo                   location /api {
 echo                       proxy_pass http://localhost:3001;
@@ -426,14 +426,13 @@ if defined ACTUAL_INSTANCE_ID (
 )
 
 echo.
-echo Ensuring local backend/upload directory exists for S3 sync...
-if not exist "%BASE_DIR%backend\upload" (
-    mkdir "%BASE_DIR%backend\upload"
-)
+echo Ensuring local backend\uploads directory exists for S3 sync...
+if not exist "%BASE_DIR%backend" mkdir "%BASE_DIR%backend"
+if not exist "%BASE_DIR%backend\uploads" mkdir "%BASE_DIR%backend\uploads"
 echo Syncing frontend files to S3...
 for /f "tokens=*" %%i in ('terraform output -raw s3_bucket_name') do (
     aws s3 sync "%BASE_DIR%frontend" s3://%%i/frontend --delete --region %AWS_REGION%
-    aws s3 sync "%BASE_DIR%backend/upload" s3://%%i/backend/upload --delete --region %AWS_REGION%
+    aws s3 sync "%BASE_DIR%backend/uploads" s3://%%i/backend/uploads --delete --region %AWS_REGION%
 )
 
 echo.

@@ -73,4 +73,4 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           aws s3 sync frontend/ s3://${{ steps.bucket_name.outputs.NAME }}/frontend/ --delete --region ${{ env.AWS_REGION }}
-          aws s3 sync backend/upload/ s3://${{ steps.bucket_name.outputs.NAME }}/backend/upload/ --delete --region ${{ env.AWS_REGION }}
+          aws s3 sync backend/uploads/ s3://${{ steps.bucket_name.outputs.NAME }}/backend/uploads/ --delete --region ${{ env.AWS_REGION }}
