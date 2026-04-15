@@ -8,6 +8,11 @@ output "instance_id" {
   value       = aws_instance.app_server.id
 }
 
+output "s3_website_url" {
+  description = "URL of the S3 static website"
+  value       = "http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/index.html"
+}
+
 output "s3_bucket_name" {
   description = "Name of the S3 bucket"
   value       = aws_s3_bucket.data_bucket.id

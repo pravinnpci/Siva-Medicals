@@ -259,6 +259,33 @@ echo     Name = "${var.project_name}-DataBucket"
 echo   }
 echo }
 echo.
+echo resource "aws_s3_bucket_website_configuration" "data_bucket_web" {
+echo   bucket = aws_s3_bucket.data_bucket.id
+echo   index_document { suffix = "index.html" }
+echo   error_document { key = "error.html" }
+echo }
+echo.
+echo resource "aws_s3_bucket_public_access_block" "data_bucket_access" {
+echo   bucket = aws_s3_bucket.data_bucket.id
+echo   block_public_acls       = false
+echo   block_public_policy     = false
+echo   ignore_public_acls      = false
+echo   restrict_public_buckets = false
+echo }
+echo.
+echo resource "aws_s3_bucket_policy" "allow_public_access" {
+echo   bucket = aws_s3_bucket.data_bucket.id
+echo   policy = jsonencode({
+echo     Version = "2012-10-17"
+echo     Statement = [{
+echo       Effect    = "Allow"
+echo       Principal = "*"
+echo       Action    = "s3:GetObject"
+echo       Resource  = "${aws_s3_bucket.data_bucket.arn}/*"
+echo     }]
+echo   })
+echo }
+echo.
 echo resource "aws_s3_bucket_ownership_controls" "data_bucket_oc" {
 echo   bucket = aws_s3_bucket.data_bucket.id
 echo   rule {
@@ -298,6 +325,11 @@ echo Creating outputs.tf...
 echo output "instance_public_ip" {
 echo   description = "Public IP address of the EC2 instance"
 echo   value       = var.existing_eip
+echo }
+echo.
+echo output "s3_website_url" {
+echo   description = "URL of the S3 static website"
+echo   value       = "http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/index.html"
 echo }
 echo.
 echo output "instance_id" {
