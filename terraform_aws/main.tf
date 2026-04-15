@@ -163,8 +163,8 @@ ECHO is off.
               sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
               echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com 0 0" >> /etc/fstab
               mount /mnt/s3_uploads
-              mkdir -p /mnt/s3_uploads/backend/upload
-              chmod 777 /mnt/s3_uploads/uploads
+              mkdir -p /mnt/s3_uploads/uploads
+              chmod 777 /mnt/s3_uploads/backend/upload
 
               sudo systemctl start docker
               sudo systemctl enable docker
@@ -184,7 +184,7 @@ ECHO is off.
               server {
                   listen 80;
                   location / {
-                      proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/frontend/;
+                      proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
                       proxy_set_header Host ${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
                   }
                   location /uploads {
@@ -260,4 +260,19 @@ resource "aws_s3_bucket_acl" "data_bucket_acl" {
 
 resource "random_id" "bucket_suffix" {
   byte_length = 8
+}
+
+resource "aws_ebs_volume" "data_volume" {
+  availability_zone = aws_instance.app_server.availability_zone
+  size              = var.ebs_volume_size_gb
+  type              = "gp3"
+  tags              = {
+    Name = "${var.project_name}-DataVolume"
+  }
+}
+
+resource "aws_volume_attachment" "ebs_att" {
+  device_name = "/dev/sdh"
+  volume_id   = aws_ebs_volume.data_volume.id
+  instance_id = aws_instance.app_server.id
 }

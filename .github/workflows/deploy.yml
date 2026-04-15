@@ -16,7 +16,7 @@ jobs:
 
       - name: Setup Terraform
         id: setup-tf # Add an ID to reference outputs
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.5.0
 
@@ -28,5 +28,5 @@ jobs:
           AWS_DEFAULT_REGION: ap-south-2
           CI: "true"
         run: |
-          set PATH=%PATH%;${{ steps.setup-tf.outputs.terraform-path }}
+          terraform -version
           terrform.bat

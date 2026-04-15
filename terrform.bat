@@ -12,7 +12,6 @@ set "EXISTING_EIP=18.60.246.115"
 set "PROJECT_NAME=SIVAMedicals"
 set "S3_BUCKET_PREFIX=siva-medicals-data-hyderabad" :: S3 bucket names must be globally unique
 set "EC2_INSTANCE_TYPE=t3.micro" :: t3.micro is the Free Tier eligible type in ap-south-2.
-set "EBS_VOLUME_SIZE_GB=20" :: Ensure this combined with other EBS usage stays within 30GB free tier
 
 echo.
 if /i not "%CI%"=="true" (
@@ -268,8 +267,8 @@ echo               mkdir -p /mnt/s3_uploads
 echo               sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
 echo               echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com 0 0" ^>^> /etc/fstab
 echo               mount /mnt/s3_uploads
-echo               mkdir -p /mnt/s3_uploads/backend/upload
-echo               chmod 777 /mnt/s3_uploads/uploads
+echo               mkdir -p /mnt/s3_uploads/uploads
+echo               chmod 777 /mnt/s3_uploads/backend/upload
 echo.
 echo               sudo systemctl start docker
 echo               sudo systemctl enable docker
@@ -289,7 +288,7 @@ echo               cat ^> /etc/nginx/sites-available/default ^<^<NX
 echo               server {
 echo                   listen 80;
 echo                   location / {
-echo                       proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/frontend/;
+echo                       proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
 echo                       proxy_set_header Host ${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
 echo                   }
 echo                   location /uploads {
@@ -365,6 +364,21 @@ echo }
 echo.
 echo resource "random_id" "bucket_suffix" {
 echo   byte_length = 8
+echo }
+echo.
+echo resource "aws_ebs_volume" "data_volume" {
+echo   availability_zone = aws_instance.app_server.availability_zone
+echo   size              = var.ebs_volume_size_gb
+echo   type              = "gp3"
+echo   tags              = {
+echo     Name = "${var.project_name}-DataVolume"
+echo   }
+echo }
+echo.
+echo resource "aws_volume_attachment" "ebs_att" {
+echo   device_name = "/dev/sdh"
+echo   volume_id   = aws_ebs_volume.data_volume.id
+echo   instance_id = aws_instance.app_server.id
 echo }
 ) > main.tf
 
