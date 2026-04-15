@@ -43,9 +43,7 @@ resource "aws_vpc" "main" {
 }
 
 resource "aws_subnet" "public" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.1.0/24"
-  map_public_ip_on_launch = true
+  vpc_id            _ip_on= true
   availability_zone       = "${var.aws_region}a"
   tags = {
     Name = "${var.project_name}-PublicSubnet"
@@ -117,17 +115,37 @@ resource "aws_security_group" "ec2_sg" {
 resource "aws_instance" "app_server" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
-  key_name               = aws_key_pair.ec2_key_pair.key_name # Use the key pair created by Terraform
-  subnet_id              = aws_subnet.public.id
-  vpc_security_group_ids = [aws_security_group.ec2_sg.id]
+  key_name               = aws_key_pair.ec2_key_pair.key_name
+  subnet_id              = aws_subnet.publip
 
   user_data = <<-EOF
               #!/bin/bash
               sudo apt-get update
               sudo apt-get install -y docker.io
+              
+              # Mount EBS Volume for Postgres Data
+              # t3 instances use NVMe, /dev/sdh usually becomes /dev/nvme1n1
+              DEVICE=$(lsblk -dno NAME | grep -v "nvme0n1" | head -n 1)
+              if [ ! -z "$DEVICE" ]; then
+                mkfs -t ext4 /dev/$DEVICE
+                mkdir -p /mnt/postgres_data
+                mount /dev/$DEVICE /mnt/postgres_data
+                echo "/dev/$DEVICE /mnt/postgres_data ext4 defaults,nofail 0 2" >> /etc/fstab
+              fi
+
               sudo systemctl start docker
               sudo systemctl enable docker
               sudo usermod -aG docker ubuntu
+
+              # Run PostgreSQL with Persistence
+              docker run -d --name postgres-db \
+                -v /mnt/postgres_data:/var/lib/postgresql/data \
+                -e POSTGRES_PASSWORD=admin123 \
+                postgres:14
+
+              # Pull and Run Siva Medicals App
+              docker pull pravinnpci/siva-medicals:latest
+              docker run -d --name siva-app -p 80:80 --link postgres-db:db pravinnpci/siva-medicals:latest
               EOF
 
   tags = {
