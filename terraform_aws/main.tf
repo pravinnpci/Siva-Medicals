@@ -38,27 +38,27 @@ resource "aws_key_pair" "ec2_key_pair" {
 # IAM Role for S3 Access
 resource "aws_iam_role" "ec2_s3_role" {
   name = "${var.project_name}-S3Role"
-  assume_role_policy = jsonencode({
+  assume_role_policy = jsonencode( {
     Version = "2012-10-17"
     Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
       Principal = { Service = "ec2.amazonaws.com" }
     }]
-  })
+  } )
 }
 
 resource "aws_iam_role_policy" "s3_policy" {
   name = "${var.project_name}-S3Policy"
   role = aws_iam_role.ec2_s3_role.id
-  policy = jsonencode({
+  policy = jsonencode( {
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
-      Action   = ["s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+      Effect = "Allow"
+      Action = ["s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
       Resource = [aws_s3_bucket.data_bucket.arn, "${aws_s3_bucket.data_bucket.arn}/*"]
     }]
-  })
+  } )
 }
 
 resource "aws_iam_instance_profile" "s3_profile" {
@@ -68,24 +68,24 @@ resource "aws_iam_instance_profile" "s3_profile" {
 
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
-  tags = {
+  tags       = {
     Name = "${var.project_name}-VPC"
   }
 }
 
 resource "aws_subnet" "public" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.1.0/24"
   map_public_ip_on_launch = true
   availability_zone       = "${var.aws_region}a"
-  tags = {
+  tags                    = {
     Name = "${var.project_name}-PublicSubnet"
   }
 }
 
 resource "aws_internet_gateway" "gw" {
   vpc_id = aws_vpc.main.id
-  tags = {
+  tags   = {
     Name = "${var.project_name}-IGW"
   }
 }
@@ -97,7 +97,7 @@ resource "aws_route_table" "r" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.gw.id
   }
-  tags = {
+  tags   = {
     Name = "${var.project_name}-RouteTable"
   }
 }
@@ -158,24 +158,12 @@ resource "aws_instance" "app_server" {
               sudo apt-get update
               sudo apt-get install -y docker.io nginx s3fs
 ECHO is off.
-              # Mount EBS Volume for Postgres Data
-              # t3 instances use NVMe, /dev/sdh usually becomes /dev/nvme1n1
-              DEVICE=$(lsblk -dno NAME | grep -v "nvme0n1" | head -n 1)
-              if [  -z "$DEVICE" ]; then
-                if  blkid /dev/$DEVICE; then
-                  mkfs -t ext4 /dev/$DEVICE
-                fi
-                mkdir -p /mnt/postgres_data
-                mount /dev/$DEVICE /mnt/postgres_data
-                echo "/dev/$DEVICE /mnt/postgres_data ext4 defaults,nofail 0 2" >> /etc/fstab
-              fi
-
               # Mount S3 Bucket for Uploads
               mkdir -p /mnt/s3_uploads
               sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
               echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com 0 0" >> /etc/fstab
               mount /mnt/s3_uploads
-              mkdir -p /mnt/s3_uploads/uploads
+              mkdir -p /mnt/s3_uploads/backend/upload
               chmod 777 /mnt/s3_uploads/uploads
 
               sudo systemctl start docker
@@ -184,13 +172,12 @@ ECHO is off.
 
               # Run PostgreSQL with Persistence
               docker run -d --name postgres-db \
-                -v /mnt/postgres_data:/var/lib/postgresql/data \
                 -e POSTGRES_PASSWORD=admin123 \
                 postgres:14
 
               # Pull and Run Siva Medicals App
               docker pull pravinnpci/siva-medicals:latest
-              docker run -d --name siva-app -p 3001:3001 -v /mnt/s3_uploads/uploads:/app/uploads --link postgres-db:db -e DB_HOST=db -e DB_PASSWORD=admin123 pravinnpci/siva-medicals:latest
+              docker run -d --name siva-app -p 3001:3001 -v /mnt/s3_uploads/backend/upload:/app/uploads --link postgres-db:db -e DB_HOST=db -e DB_PASSWORD=admin123 pravinnpci/siva-medicals:latest
 
               # Configure Nginx as Reverse Proxy
               cat > /etc/nginx/sites-available/default <<NX
@@ -227,7 +214,7 @@ resource "aws_eip_association" "eip_assoc" {
 
 resource "aws_s3_bucket" "data_bucket" {
   bucket = "${var.s3_bucket_name_prefix}-${var.aws_region}-${random_id.bucket_suffix.hex}"
-  tags = {
+  tags   = {
     Name = "${var.project_name}-DataBucket"
   }
 }
@@ -239,7 +226,7 @@ resource "aws_s3_bucket_website_configuration" "data_bucket_web" {
 }
 
 resource "aws_s3_bucket_public_access_block" "data_bucket_access" {
-  bucket                  = aws_s3_bucket.data_bucket.id
+  bucket = aws_s3_bucket.data_bucket.id
   block_public_acls       = false
   block_public_policy     = false
   ignore_public_acls      = false
@@ -248,7 +235,7 @@ resource "aws_s3_bucket_public_access_block" "data_bucket_access" {
 
 resource "aws_s3_bucket_policy" "allow_public_access" {
   bucket = aws_s3_bucket.data_bucket.id
-  policy = jsonencode({
+  policy = jsonencode( {
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
@@ -256,7 +243,7 @@ resource "aws_s3_bucket_policy" "allow_public_access" {
       Action    = "s3:GetObject"
       Resource  = "${aws_s3_bucket.data_bucket.arn}/*"
     }]
-  })
+  } )
 }
 resource "aws_s3_bucket_ownership_controls" "data_bucket_oc" {
   bucket = aws_s3_bucket.data_bucket.id
@@ -273,19 +260,4 @@ resource "aws_s3_bucket_acl" "data_bucket_acl" {
 
 resource "random_id" "bucket_suffix" {
   byte_length = 8
-}
-
-resource "aws_ebs_volume" "data_volume" {
-  availability_zone = aws_instance.app_server.availability_zone
-  size              = var.ebs_volume_size_gb
-  type              = "gp3"
-  tags = {
-    Name = "${var.project_name}-DataVolume"
-  }
-}
-
-resource "aws_volume_attachment" "ebs_att" {
-  device_name = "/dev/sdh"
-  volume_id   = aws_ebs_volume.data_volume.id
-  instance_id = aws_instance.app_server.id
 }

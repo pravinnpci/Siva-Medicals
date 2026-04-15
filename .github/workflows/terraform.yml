@@ -41,7 +41,8 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.
+          terraform_version: "1.5.0"
+
       - name: Terraform Init
         run: terraform init
         working-directory: ./terraform_aws
@@ -70,4 +71,7 @@ jobs:
 
       - name: Sync Website to S3 (Optional)
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: aws s3 sync . s3://${{ steps.bucket_name.outputs.NAME }} --exclude "terraform_aws/*" --exclude ".github/*" --exclude "Others/*" --delete --region ${{ env.AWS_REGION }}
+        run: |
+          aws s3 sync frontend/ s3://${{ steps.bucket_name.outputs.NAME }}/frontend/ --delete --region ${{ env.AWS_REGION }}
+          aws s3 sync backend/upload/ s3://${{ steps.bucket_name.outputs.NAME }}/backend/upload/ --delete --region ${{ env.AWS_REGION }}
+          aws s3 sync backend/upload/ s3://${{ steps.bucket_name.outputs.NAME }}/backend/upload/ --delete --region ${{ env.AWS_REGION }}

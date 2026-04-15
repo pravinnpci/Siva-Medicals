@@ -12,7 +12,6 @@ set "EXISTING_EIP=18.60.246.115"
 set "PROJECT_NAME=SIVAMedicals"
 set "S3_BUCKET_PREFIX=siva-medicals-data-hyderabad" :: S3 bucket names must be globally unique
 set "EC2_INSTANCE_TYPE=t3.micro" :: t3.micro is the Free Tier eligible type in ap-south-2.
-set "EBS_VOLUME_SIZE_GB=20" :: Ensure this combined with other EBS usage stays within 30GB free tier
 
 echo.
 if /i not "%CI%"=="true" (
@@ -269,24 +268,12 @@ echo               #!/bin/bash
 echo               sudo apt-get update
 echo               sudo apt-get install -y docker.io nginx s3fs
 echo               
-echo               # Mount EBS Volume for Postgres Data
-echo               # t3 instances use NVMe, /dev/sdh usually becomes /dev/nvme1n1
-echo               DEVICE=$^(lsblk -dno NAME ^| grep -v "nvme0n1" ^| head -n 1^)
-echo               if [ ! -z "$DEVICE" ]; then
-echo                 if ! blkid /dev/$DEVICE; then
-echo                   mkfs -t ext4 /dev/$DEVICE
-echo                 fi
-echo                 mkdir -p /mnt/postgres_data
-echo                 mount /dev/$DEVICE /mnt/postgres_data
-echo                 echo "/dev/$DEVICE /mnt/postgres_data ext4 defaults,nofail 0 2" ^>^> /etc/fstab
-echo               fi
-echo.
 echo               # Mount S3 Bucket for Uploads
 echo               mkdir -p /mnt/s3_uploads
 echo               sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
 echo               echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com 0 0" ^>^> /etc/fstab
 echo               mount /mnt/s3_uploads
-echo               mkdir -p /mnt/s3_uploads/uploads
+echo               mkdir -p /mnt/s3_uploads/backend/upload
 echo               chmod 777 /mnt/s3_uploads/uploads
 echo.
 echo               sudo systemctl start docker
@@ -295,13 +282,12 @@ echo               sudo usermod -aG docker ubuntu
 echo.
 echo               # Run PostgreSQL with Persistence
 echo               docker run -d --name postgres-db \
-echo                 -v /mnt/postgres_data:/var/lib/postgresql/data \
 echo                 -e POSTGRES_PASSWORD=admin123 \
 echo                 postgres:14
 echo.
 echo               # Pull and Run Siva Medicals App
 echo               docker pull pravinnpci/siva-medicals:latest
-echo               docker run -d --name siva-app -p 3001:3001 -v /mnt/s3_uploads/uploads:/app/uploads --link postgres-db:db -e DB_HOST=db -e DB_PASSWORD=admin123 pravinnpci/siva-medicals:latest
+echo               docker run -d --name siva-app -p 3001:3001 -v /mnt/s3_uploads/backend/upload:/app/uploads --link postgres-db:db -e DB_HOST=db -e DB_PASSWORD=admin123 pravinnpci/siva-medicals:latest
 echo.
 echo               # Configure Nginx as Reverse Proxy
 echo               cat ^> /etc/nginx/sites-available/default ^<^<NX
@@ -385,21 +371,6 @@ echo.
 echo resource "random_id" "bucket_suffix" {
 echo   byte_length = 8
 echo }
-echo.
-echo resource "aws_ebs_volume" "data_volume" {
-echo   availability_zone = aws_instance.app_server.availability_zone
-echo   size              = var.ebs_volume_size_gb
-echo   type              = "gp3"
-echo   tags              = {
-echo     Name = "${var.project_name}-DataVolume"
-echo   }
-echo }
-echo.
-echo resource "aws_volume_attachment" "ebs_att" {
-echo   device_name = "/dev/sdh"
-echo   volume_id   = aws_ebs_volume.data_volume.id
-echo   instance_id = aws_instance.app_server.id
-echo }
 ) > main.tf
 
 echo.
@@ -463,6 +434,7 @@ if defined ACTUAL_INSTANCE_ID (
 echo Syncing frontend files to S3...
 for /f "tokens=*" %%i in ('terraform output -raw s3_bucket_name') do (
     aws s3 sync "%BASE_DIR%frontend" s3://%%i/frontend --delete --region %AWS_REGION%
+    aws s3 sync "%BASE_DIR%backend/upload" s3://%%i/backend/upload --delete --region %AWS_REGION%
 )
 
 echo.
