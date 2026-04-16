@@ -31,13 +31,13 @@ resource "local_file" "private_key" {
 
 # Upload the public key to AWS to create an EC2 Key Pair
 resource "aws_key_pair" "ec2_key_pair" {
-  key_name   = "${var.project_name}-ec2-key-${random_id.bucket_suffix.hex}"
+  key_name   = "${var.project_name}-ec2-key"
   public_key = tls_private_key.rsa_key.public_key_openssh
 }
 
 # IAM Role for S3 Access
 resource "aws_iam_role" "ec2_s3_role" {
-  name = "${var.project_name}-S3Role-${random_id.bucket_suffix.hex}"
+  name = "${var.project_name}-S3Role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -49,7 +49,7 @@ resource "aws_iam_role" "ec2_s3_role" {
 }
 
 resource "aws_iam_role_policy" "s3_policy" {
-  name = "${var.project_name}-S3Policy-${random_id.bucket_suffix.hex}"
+  name = "${var.project_name}-S3Policy"
   role = aws_iam_role.ec2_s3_role.id
   policy = jsonencode({
     Version = "2012-10-17"
@@ -62,7 +62,7 @@ resource "aws_iam_role_policy" "s3_policy" {
 }
 
 resource "aws_iam_instance_profile" "s3_profile" {
-  name = "${var.project_name}-S3Profile-${random_id.bucket_suffix.hex}"
+  name = "${var.project_name}-S3Profile"
   role = aws_iam_role.ec2_s3_role.name
 }
 
@@ -154,10 +154,10 @@ resource "aws_instance" "app_server" {
   iam_instance_profile   = aws_iam_instance_profile.s3_profile.name
 
   user_data = <<-EOF
-    #/bin/bash
+    #!/bin/bash
     sudo apt-get update
     sudo apt-get install -y docker.io nginx s3fs
-ECHO is off.
+
     # Mount S3 Bucket for Uploads
     mkdir -p /mnt/s3_uploads
     sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
@@ -201,6 +201,10 @@ ECHO is off.
   tags = {
     Name = "${var.project_name}-AppServer"
   }
+
+  lifecycle {
+    ignore_changes = [ami]
+  }
 }
 
 data "aws_eip" "selected" {
@@ -213,10 +217,8 @@ resource "aws_eip_association" "eip_assoc" {
 }
 
 resource "aws_s3_bucket" "data_bucket" {
-  bucket = "${var.s3_bucket_name_prefix}-${var.aws_region}-${random_id.bucket_suffix.hex}"
-  tags = {
-    Name = "${var.project_name}-DataBucket"
-  }
+  bucket        = var.manual_bucket_name != "" ? var.manual_bucket_name : "${var.s3_bucket_name_prefix}-${var.aws_region}"
+  force_destroy = true
 }
 
 resource "aws_s3_bucket_website_configuration" "data_bucket_web" {

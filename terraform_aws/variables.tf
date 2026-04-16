@@ -27,3 +27,9 @@ variable "s3_bucket_name_prefix" {
   type        = string
   default     = "siva-medicals-data-hyderabad"
 }
+
+variable "manual_bucket_name" {
+  description = "Used if an existing bucket is found"
+  type        = string
+  default     = "siva-medicals-data-hyderabad-ap-south-2"
+}

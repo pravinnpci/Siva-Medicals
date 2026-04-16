@@ -32,14 +32,61 @@ if %errorlevel% neq 0 (
     goto :eof
 )
 
+echo.
+echo Searching for existing infrastructure to reuse...
+set "FOUND_BUCKET="
+for /f "tokens=*" %%i in ('aws s3api list-buckets --query "Buckets[?starts_with(Name, '%S3_BUCKET_PREFIX%')].Name" --output text --region %AWS_REGION%') do (
+    if not "%%i"=="None" if not "%%i"=="" set "FOUND_BUCKET=%%i"
+)
+set "FOUND_INSTANCE="
+for /f "tokens=*" %%i in ('aws ec2 describe-instances --filters "Name=tag:Name,Values=%PROJECT_NAME%-AppServer" "Name=instance-state-name,Values=running,stopped" --query "Reservations[].Instances[?State.Name != 'terminated'].InstanceId" --output text --region %AWS_REGION%') do (
+    if not "%%i"=="None" if not "%%i"=="" set "FOUND_INSTANCE=%%i"
+)
+set "FOUND_VPC="
+for /f "tokens=*" %%i in ('aws ec2 describe-vpcs --filters "Name=tag:Name,Values=%PROJECT_NAME%-VPC" --query "Vpcs[?State=='available'].VpcId" --output text --region %AWS_REGION%') do (
+    if not "%%i"=="None" if not "%%i"=="" set "FOUND_VPC=%%i"
+)
+set "FOUND_KEY="
+for /f "tokens=*" %%i in ('aws ec2 describe-key-pairs --filters "Name=key-name,Values=%PROJECT_NAME%-ec2-key" --query "KeyPairs[0].KeyName" --output text --region %AWS_REGION%') do (
+    if not "%%i"=="None" if not "%%i"=="" set "FOUND_KEY=%%i"
+)
+set "FOUND_SG="
+if defined FOUND_VPC (
+    for /f "tokens=*" %%i in ('aws ec2 describe-security-groups --filters "Name=vpc-id,Values=%FOUND_VPC%" "Name=group-name,Values=%PROJECT_NAME%-EC2-SG" --query "SecurityGroups[0].GroupId" --output text --region %AWS_REGION%') do (
+        if not "%%i"=="None" set "FOUND_SG=%%i"
+    )
+)
+set "FOUND_ROLE="
+for /f "tokens=*" %%i in ('aws iam get-role --role-name %PROJECT_NAME%-S3Role --query "Role.RoleName" --output text 2^>nul') do (
+    set "FOUND_ROLE=%%i"
+)
+set "FOUND_PROFILE="
+for /f "tokens=*" %%i in ('aws iam get-instance-profile --instance-profile-name %PROJECT_NAME%-S3Profile --query "InstanceProfile.InstanceProfileName" --output text 2^>nul') do (
+    set "FOUND_PROFILE=%%i"
+)
+set "FOUND_SUBNET="
+if defined FOUND_VPC (
+    for /f "tokens=*" %%i in ('aws ec2 describe-subnets --filters "Name=vpc-id,Values=!FOUND_VPC!" "Name=cidr-block,Values=10.0.1.0/24" --query "Subnets[0].SubnetId" --output text --region %AWS_REGION%') do (
+        if not "%%i"=="None" set "FOUND_SUBNET=%%i"
+    )
+)
+set "FOUND_IGW="
+if defined FOUND_VPC (
+    for /f "tokens=*" %%i in ('aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=!FOUND_VPC!" --query "InternetGateways[].InternetGatewayId" --output text --region %AWS_REGION%') do (
+        if not "%%i"=="None" set "FOUND_IGW=%%i"
+    )
+)
+set "FOUND_VOLUME="
+for /f "tokens=*" %%i in ('aws ec2 describe-volumes --filters "Name=tag:Name,Values=%PROJECT_NAME%-DataVolume" "Name=status,Values=available,in-use" --query "Volumes[].VolumeId" --output text --region %AWS_REGION%') do (
+    if not "%%i"=="None" if not "%%i"=="" set "FOUND_VOLUME=%%i"
+)
 
 echo.
 echo Creating Terraform directory: %TF_DIR%
 if not exist "%TF_DIR%" (
     mkdir "%TF_DIR%"
 )
-echo Clearing old .tf files...
-del /q "%TF_DIR%\*.tf" >nul 2>&1
+
 cd /d "%TF_DIR%" || (echo Failed to change directory. Exiting. && exit /b 1)
 
 echo.
@@ -51,6 +98,10 @@ echo   required_providers {
 echo     aws = {
 echo       source  = "hashicorp/aws"
 echo       version = "~> 5.0"
+echo     }
+echo     random = {
+echo       source  = "hashicorp/random"
+echo       version = "~> 3.0"
 echo     }
 echo   }
 echo }
@@ -97,6 +148,12 @@ echo   description = "Prefix for the S3 bucket name (must be globally unique)"
 echo   type        = string
 echo   default     = "%S3_BUCKET_PREFIX%"
 echo }
+echo.
+echo variable "manual_bucket_name" {
+echo   description = "Used if an existing bucket is found"
+echo   type        = string
+echo   default     = "!FOUND_BUCKET!"
+echo }
 ) > variables.tf
 
 echo.
@@ -135,13 +192,13 @@ echo }
 echo.
 echo # Upload the public key to AWS to create an EC2 Key Pair
 echo resource "aws_key_pair" "ec2_key_pair" {
-echo   key_name   = "${var.project_name}-ec2-key-${random_id.bucket_suffix.hex}"
+echo   key_name   = "${var.project_name}-ec2-key"
 echo   public_key = tls_private_key.rsa_key.public_key_openssh
 echo }
 echo.
 echo # IAM Role for S3 Access
 echo resource "aws_iam_role" "ec2_s3_role" {
-echo   name = "${var.project_name}-S3Role-${random_id.bucket_suffix.hex}"
+echo   name = "${var.project_name}-S3Role"
 echo   assume_role_policy = jsonencode^( {
 echo     Version = "2012-10-17"
 echo     Statement = [{
@@ -153,7 +210,7 @@ echo   } ^)
 echo }
 echo.
 echo resource "aws_iam_role_policy" "s3_policy" {
-echo   name = "${var.project_name}-S3Policy-${random_id.bucket_suffix.hex}"
+echo   name = "${var.project_name}-S3Policy"
 echo   role = aws_iam_role.ec2_s3_role.id
 echo   policy = jsonencode^({
 echo     Version = "2012-10-17"
@@ -166,7 +223,7 @@ echo   }^)
 echo }
 echo.
 echo resource "aws_iam_instance_profile" "s3_profile" {
-echo   name = "${var.project_name}-S3Profile-${random_id.bucket_suffix.hex}"
+echo   name = "${var.project_name}-S3Profile"
 echo   role = aws_iam_role.ec2_s3_role.name
 echo }
 echo.
@@ -191,6 +248,9 @@ echo resource "aws_internet_gateway" "gw" {
 echo   vpc_id = aws_vpc.main.id
 echo   tags   = {
 echo     Name = "${var.project_name}-IGW"
+echo   }
+echo   lifecycle {
+echo     prevent_destroy = true
 echo   }
 echo }
 echo.
@@ -256,12 +316,30 @@ echo   key_name               = aws_key_pair.ec2_key_pair.key_name
 echo   subnet_id              = aws_subnet.public.id
 echo   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
 echo   iam_instance_profile   = aws_iam_instance_profile.s3_profile.name
+echo   user_data_replace_on_change = false
 echo.
 echo   user_data = ^<^<-EOF
 echo     #!/bin/bash
-echo     sudo apt-get update
-echo     sudo apt-get install -y docker.io nginx s3fs
-echo     
+echo     apt-get update
+echo     apt-get install -y docker.io nginx s3fs
+echo:
+echo     # Mount EBS Volume for Postgres Data (T3 uses NVMe)
+echo     # Wait for volume to be attached
+echo     while [ ! -b /dev/$(lsblk -dno NAME ^| grep -v "nvme0n1" ^| head -n 1) ]; do
+echo       sleep 5
+echo     done
+echo.
+echo     DEVICE=/dev/$(lsblk -dno NAME ^| grep -v "nvme0n1" ^| head -n 1)
+echo     if [ ! -z "$DEVICE" ]; then
+echo       if ! blkid $DEVICE; then
+echo         mkfs -t ext4 $DEVICE
+echo       fi
+echo       mkdir -p /mnt/postgres_data
+echo       mount $DEVICE /mnt/postgres_data
+echo       echo "$DEVICE /mnt/postgres_data ext4 defaults,nofail 0 2" ^>^> /etc/fstab
+echo       chown -R 999:999 /mnt/postgres_data
+echo     fi
+echo.
 echo     # Mount S3 Bucket for Uploads
 echo     mkdir -p /mnt/s3_uploads
 echo     sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
@@ -274,8 +352,9 @@ echo     sudo systemctl start docker
 echo     sudo systemctl enable docker
 echo     sudo usermod -aG docker ubuntu
 echo.
-echo     # Run PostgreSQL with Persistence
+echo     # Run PostgreSQL with EBS Persistence
 echo     docker run -d --name postgres-db \
+echo       -v /mnt/postgres_data:/var/lib/postgresql/data \
 echo       -e POSTGRES_PASSWORD=admin123 \
 echo       postgres:14
 echo.
@@ -305,6 +384,10 @@ echo.
 echo   tags = {
 echo     Name = "${var.project_name}-AppServer"
 echo   }
+echo.
+echo   lifecycle {
+echo     ignore_changes = [ami]
+echo   }
 echo }
 echo.
 echo data "aws_eip" "selected" {
@@ -317,10 +400,22 @@ echo   allocation_id = data.aws_eip.selected.id
 echo }
 echo.
 echo resource "aws_s3_bucket" "data_bucket" {
-echo   bucket = "${var.s3_bucket_name_prefix}-${var.aws_region}-${random_id.bucket_suffix.hex}"
-echo   tags   = {
-echo     Name = "${var.project_name}-DataBucket"
+echo   bucket = var.manual_bucket_name == "" ? "${var.s3_bucket_name_prefix}-${var.aws_region}" : var.manual_bucket_name
+echo   force_destroy = true
+echo }
+echo.
+echo resource "aws_ebs_volume" "data_volume" {
+echo   availability_zone = aws_instance.app_server.availability_zone
+echo   size              = 10
+echo   tags = {
+echo     Name = "${var.project_name}-DataVolume"
 echo   }
+echo }
+echo.
+echo resource "aws_volume_attachment" "ebs_att" {
+echo   device_name = "/dev/sdh"
+echo   volume_id   = aws_ebs_volume.data_volume.id
+echo   instance_id = aws_instance.app_server.id
 echo }
 echo.
 echo resource "aws_s3_bucket_website_configuration" "data_bucket_web" {
@@ -404,11 +499,71 @@ echo }
 
 echo.
 echo All Terraform files created successfully in ./%TF_DIR%.
+
 echo Formatting Terraform files...
 terraform fmt
 
 echo Initializing Terraform...
-terraform init
+:: Use migrate-state to handle backend transitions and lineage issues safely
+terraform init -reconfigure
+
+echo.
+echo Checking if resources need to be imported into state...
+if defined FOUND_BUCKET (
+    terraform state list | findstr "aws_s3_bucket.data_bucket" >nul
+    if errorlevel 1 (
+        echo Importing existing S3 bucket: !FOUND_BUCKET!
+        terraform import -var="manual_bucket_name=!FOUND_BUCKET!" aws_s3_bucket.data_bucket !FOUND_BUCKET!
+    )
+)
+if defined FOUND_VPC (
+    terraform state list | findstr "aws_vpc.main" >nul
+    if errorlevel 1 (
+        echo Importing existing VPC: !FOUND_VPC!
+        terraform import -var="manual_bucket_name=!FOUND_BUCKET!" aws_vpc.main !FOUND_VPC!
+    )
+)
+if defined FOUND_KEY (
+    terraform state list | findstr "aws_key_pair.ec2_key_pair" >nul
+    if errorlevel 1 (
+        terraform import -var="manual_bucket_name=!FOUND_BUCKET!" aws_key_pair.ec2_key_pair !FOUND_KEY!
+    )
+)
+if defined FOUND_SG (
+    terraform state list | findstr "aws_security_group.ec2_sg" >nul
+    if errorlevel 1 (
+        terraform import -var="manual_bucket_name=!FOUND_BUCKET!" aws_security_group.ec2_sg !FOUND_SG!
+    )
+)
+if defined FOUND_ROLE (
+    terraform state list | findstr "aws_iam_role.ec2_s3_role" >nul
+    if errorlevel 1 terraform import -var="manual_bucket_name=!FOUND_BUCKET!" aws_iam_role.ec2_s3_role !FOUND_ROLE!
+)
+if defined FOUND_PROFILE (
+    terraform state list | findstr "aws_iam_instance_profile.s3_profile" >nul
+    if errorlevel 1 terraform import -var="manual_bucket_name=!FOUND_BUCKET!" aws_iam_instance_profile.s3_profile !FOUND_PROFILE!
+)
+if defined FOUND_SUBNET (
+    terraform state list | findstr "aws_subnet.public" >nul
+    if errorlevel 1 terraform import -var="manual_bucket_name=!FOUND_BUCKET!" aws_subnet.public !FOUND_SUBNET!
+)
+if defined FOUND_IGW (
+    terraform state list | findstr "aws_internet_gateway.gw" >nul
+    if errorlevel 1 terraform import -var="manual_bucket_name=!FOUND_BUCKET!" aws_internet_gateway.gw !FOUND_IGW!
+)
+if defined FOUND_INSTANCE (
+    terraform state list | findstr "aws_instance.app_server" >nul
+    if errorlevel 1 (
+        echo Importing existing EC2 instance: !FOUND_INSTANCE!
+        terraform import -var="manual_bucket_name=!FOUND_BUCKET!" aws_instance.app_server !FOUND_INSTANCE!
+    )
+)
+if defined FOUND_VOLUME (
+    terraform state list | findstr "aws_ebs_volume.data_volume" >nul
+    if errorlevel 1 (
+        terraform import -var="manual_bucket_name=!FOUND_BUCKET!" aws_ebs_volume.data_volume !FOUND_VOLUME!
+    )
+)
 
 echo.
 echo Planning Terraform changes...
@@ -416,7 +571,10 @@ terraform plan -refresh=true -out=tfplan.out
 
 echo.
 echo Securing private key permissions (if file exists)...
-if exist "sivamedicals_ec2_key.pem" icacls "sivamedicals_ec2_key.pem" /inheritance:r /grant:r "%USERNAME%":"(R)" >nul 2>&1
+if exist "sivamedicals_ec2_key.pem" (
+    icacls "sivamedicals_ec2_key.pem" /grant "%USERNAME%":F >nul 2>&1
+    del /f "sivamedicals_ec2_key.pem" >nul 2>&1
+)
 
 echo.
 echo Applying Terraform changes...
