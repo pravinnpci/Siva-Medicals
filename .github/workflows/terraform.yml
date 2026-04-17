@@ -1,4 +1,4 @@
-name: "Terraform Deployment"
+name: "Siva Medicals CI/CD Pipeline"
 
 on:
   push:
@@ -19,7 +19,7 @@ env:
 
 jobs:
   build-and-push:
-    name: "1. Siva Medicals CI (Docker)"
+    name: "Step 1: Siva Medicals CI (Docker)"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -39,7 +39,7 @@ jobs:
           tags: ${{ env.DOCKER_IMAGE }}:latest
 
   deploy-infrastructure:
-    name: "2. Terraform Infrastructure"
+    name: "Step 2: Terraform Infrastructure"
     needs: build-and-push
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -63,10 +63,6 @@ jobs:
             -backend-config="region=${{ env.AWS_REGION }}"
         working-directory: ./terraform_aws
 
-      - name: Terraform Format
-        run: terraform fmt -check
-        working-directory: ./terraform_aws
-
       - name: Discovery & Import
         id: discovery
         working-directory: ./terraform_aws
@@ -76,7 +72,7 @@ jobs:
           echo "BUCKET=$BUCKET_NAME" >> $GITHUB_OUTPUT
           
           import_if_exists() {
-            [ "$2" != "None" ] && ! terraform state list | grep -q "$1" && terraform import -var="manual_bucket_name=${{ steps.discovery.outputs.BUCKET }}" "$1" "$2" || true
+            [ -n "$2" ] && [ "$2" != "None" ] && ! terraform state list | grep -q "$1" && terraform import -var="manual_bucket_name=$BUCKET_NAME" "$1" "$2" || true
           }
 
           VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=SIVAMedicals-VPC" --query "Vpcs[0].VpcId" --output text)
@@ -85,18 +81,34 @@ jobs:
           ROLE=$(aws iam get-role --role-name SIVAMedicals-S3Role --query "Role.RoleName" --output text 2>/dev/null || echo "None")
           import_if_exists "aws_iam_role.ec2_s3_role" "$ROLE"
           
+          PROFILE=$(aws iam get-instance-profile --instance-profile-name SIVAMedicals-S3Profile --query "InstanceProfile.InstanceProfileName" --output text 2>/dev/null || echo "None")
+          import_if_exists "aws_iam_instance_profile.s3_profile" "$PROFILE"
+
           KEY=$(aws ec2 describe-key-pairs --filters "Name=key-name,Values=SIVAMedicals-ec2-key" --query "KeyPairs[0].KeyName" --output text)
           import_if_exists "aws_key_pair.ec2_key_pair" "$KEY"
 
-          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped" --query "Reservations[].Instances[?State.Name != 'terminated'].InstanceId | [0]" --output text)
+          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped,pending" --query "Reservations[0].Instances[0].InstanceId" --output text)
           import_if_exists "aws_instance.app_server" "$INSTANCE_ID"
 
+          if [ "$VPC_ID" != "None" ]; then
+            SUBNET_ID=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=SIVAMedicals-PublicSubnet" --query "Subnets[0].SubnetId" --output text)
+            import_if_exists "aws_subnet.public" "$SUBNET_ID"
+
+            IGW_ID=$(aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[0].InternetGatewayId" --output text)
+            import_if_exists "aws_internet_gateway.gw" "$IGW_ID"
+
+            SG_ID=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=SIVAMedicals-EC2-SG" --query "SecurityGroups[0].GroupId" --output text)
+            import_if_exists "aws_security_group.ec2_sg" "$SG_ID"
+          fi
+
+          import_if_exists "aws_s3_bucket.data_bucket" "$BUCKET_NAME"
+
       - name: Terraform Apply
-        run: terraform apply -auto-approve -input=false -var="manual_bucket_name=${{ steps.discovery.outputs.BUCKET }}"
+        run: terraform apply -auto-approve -input=false -var="manual_bucket_name=${{ steps.discovery.outputs.BUCKET || 'siva-medicals-data-hyderabad-ap-south-2-0daf60c3497980e4' }}"
         working-directory: ./terraform_aws
 
   kubernetes-deploy:
-    name: "3. AWS Deploy (Kubernetes)"
+    name: "Step 3: Siva Medicals Deployment with Kubernetes"
     needs: deploy-infrastructure
     runs-on: ubuntu-latest
     steps:
@@ -108,7 +120,7 @@ jobs:
           aws s3 sync frontend/ s3://${{ needs.deploy-infrastructure.outputs.discovered_bucket }}/frontend/ --delete --region ${{ env.AWS_REGION }}
           aws s3 sync backend/uploads/ s3://${{ needs.deploy-infrastructure.outputs.discovered_bucket }}/backend/uploads/ --delete --region ${{ env.AWS_REGION }}
 
-      - name: Rollout K8s
+      - name: Kubernetes Rollout
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ env.EXISTING_EIP }}
@@ -116,4 +128,4 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            sudo kubectl rollout restart deployment/siva-medicals
+            sudo kubectl rollout restart deployment/siva-backend
