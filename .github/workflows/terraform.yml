@@ -64,6 +64,41 @@ jobs:
         working-directory: ./terraform_aws
         continue-on-error: true
 
+      - name: Resource Discovery & Import
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        working-directory: ./terraform_aws
+        run: |
+          # Helper function to import if resource exists in AWS but not in state
+          import_if_exists() {
+            local address=$1
+            local id=$2
+            if [ -n "$id" ] && [ "$id" != "None" ]; then
+              if ! terraform state list | grep -q "$address"; then
+                echo "Importing $address ($id)..."
+                terraform import -var="manual_bucket_name=siva-medicals-data-hyderabad-ap-south-2-0daf60c3497980e4" "$address" "$id" || true
+              fi
+            fi
+          }
+
+          # Discover Resources
+          VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=SIVAMedicals-VPC" --query "Vpcs[0].VpcId" --output text)
+          ROLE_NAME=$(aws iam get-role --role-name SIVAMedicals-S3Role --query "Role.RoleName" --output text 2>/dev/null || echo "None")
+          KEY_NAME=$(aws ec2 describe-key-pairs --filters "Name=key-name,Values=SIVAMedicals-ec2-key" --query "KeyPairs[0].KeyName" --output text)
+          
+          # Perform Imports
+          import_if_exists "aws_vpc.main" "$VPC_ID"
+          import_if_exists "aws_iam_role.ec2_s3_role" "$ROLE_NAME"
+          import_if_exists "aws_key_pair.ec2_key_pair" "$KEY_NAME"
+
+          # Discover and Import Networking
+          if [ "$VPC_ID" != "None" ]; then
+            IGW_ID=$(aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[0].InternetGatewayId" --output text)
+            import_if_exists "aws_internet_gateway.gw" "$IGW_ID"
+            
+            RT_ID=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=SIVAMedicals-RouteTable" --query "RouteTables[0].RouteTableId" --output text)
+            import_if_exists "aws_route_table.r" "$RT_ID"
+          fi
+
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: terraform apply -auto-approve -input=false -var="manual_bucket_name=siva-medicals-data-hyderabad-ap-south-2-0daf60c3497980e4"

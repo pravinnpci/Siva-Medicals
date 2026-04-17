@@ -35,11 +35,11 @@ if %errorlevel% neq 0 (
 echo.
 echo Searching for existing infrastructure to reuse...
 set "FOUND_BUCKET="
-for /f "tokens=*" %%i in ('aws s3api list-buckets --query "Buckets[?starts_with(Name, '%S3_BUCKET_PREFIX%')].Name | [0]" --output text --region %AWS_REGION%') do (
+for /f "tokens=*" %%i in ('aws s3api list-buckets --query "Buckets[?starts_with(Name, '%S3_BUCKET_PREFIX%')].Name" --output text --region %AWS_REGION%') do (
     if not "%%i"=="None" if not "%%i"=="" set "FOUND_BUCKET=%%i"
 )
 set "FOUND_INSTANCE="
-for /f "tokens=*" %%i in ('aws ec2 describe-instances --filters "Name=tag:Name,Values=%PROJECT_NAME%-AppServer" "Name=instance-state-name,Values=running,stopped" --query "Reservations[].Instances[0].InstanceId" --output text --region %AWS_REGION%') do (
+for /f "tokens=*" %%i in ('aws ec2 describe-instances --filters "Name=tag:Name,Values=%PROJECT_NAME%-AppServer" "Name=instance-state-name,Values=running,stopped" --query "Reservations[].Instances[].InstanceId" --output text --region %AWS_REGION%') do (
     if not "%%i"=="None" if not "%%i"=="" set "FOUND_INSTANCE=%%i"
 )
 set "FOUND_VPC="
