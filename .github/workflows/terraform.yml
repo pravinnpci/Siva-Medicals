@@ -39,7 +39,7 @@ jobs:
           tags: ${{ env.DOCKER_IMAGE }}:latest
 
   deploy-infrastructure:
-    name: "Step 2: Terraform Deployment"
+    name: "Step 2: Terraform Infrastructure"
     needs: build-and-push
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -67,30 +67,38 @@ jobs:
         id: discovery
         working-directory: ./terraform_aws
         run: |
+          # Discover Bucket
           BUCKET_NAME=$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'siva-medicals-data-hyderabad')].Name | [0]" --output text)
-          [ "$BUCKET_NAME" == "None" ] && BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2-0daf60c3497980e4"
+          [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" == "None" ] && BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2"
           echo "BUCKET=$BUCKET_NAME" >> $GITHUB_OUTPUT
           
           import_if_exists() {
-            [ -n "$2" ] && [ "$2" != "None" ] && ! terraform state list | grep -q "$1" && terraform import -var="manual_bucket_name=$BUCKET_NAME" "$1" "$2" || true
+            if [ -n "$2" ] && [ "$2" != "None" ]; then
+              if ! terraform state list | grep -q "$1"; then
+                echo "Importing $1 ($2)..."
+                terraform import -var="manual_bucket_name=$BUCKET_NAME" "$1" "$2" || true
+              fi
+            fi
           }
 
+          # Core Infrastructure
           VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=SIVAMedicals-VPC" --query "Vpcs[0].VpcId" --output text)
           import_if_exists "aws_vpc.main" "$VPC_ID"
           
-          ROLE=$(aws iam get-role --role-name SIVAMedicals-S3Role --query "Role.RoleName" --output text 2>/dev/null || echo "None")
-          import_if_exists "aws_iam_role.ec2_s3_role" "$ROLE"
+          ROLE_NAME=$(aws iam get-role --role-name SIVAMedicals-S3Role --query "Role.RoleName" --output text 2>/dev/null || echo "None")
+          import_if_exists "aws_iam_role.ec2_s3_role" "$ROLE_NAME"
           
-          PROFILE=$(aws iam get-instance-profile --instance-profile-name SIVAMedicals-S3Profile --query "InstanceProfile.InstanceProfileName" --output text 2>/dev/null || echo "None")
-          import_if_exists "aws_iam_instance_profile.s3_profile" "$PROFILE"
+          PROFILE_NAME=$(aws iam get-instance-profile --instance-profile-name SIVAMedicals-S3Profile --query "InstanceProfile.InstanceProfileName" --output text 2>/dev/null || echo "None")
+          import_if_exists "aws_iam_instance_profile.s3_profile" "$PROFILE_NAME"
 
-          KEY=$(aws ec2 describe-key-pairs --filters "Name=key-name,Values=SIVAMedicals-ec2-key" --query "KeyPairs[0].KeyName" --output text)
-          import_if_exists "aws_key_pair.ec2_key_pair" "$KEY"
+          KEY_NAME=$(aws ec2 describe-key-pairs --filters "Name=key-name,Values=SIVAMedicals-ec2-key" --query "KeyPairs[0].KeyName" --output text)
+          import_if_exists "aws_key_pair.ec2_key_pair" "$KEY_NAME"
 
           INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped,pending" --query "Reservations[].Instances[?State.Name != 'terminated'].InstanceId | [0]" --output text)
           import_if_exists "aws_instance.app_server" "$INSTANCE_ID"
 
-          if [ "$VPC_ID" != "None" ]; then
+          # Networking (Adopting these prevents EC2 replacement)
+          if [ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ]; then
             SUBNET_ID=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=SIVAMedicals-PublicSubnet" --query "Subnets[0].SubnetId" --output text)
             import_if_exists "aws_subnet.public" "$SUBNET_ID"
 
@@ -103,21 +111,20 @@ jobs:
             RT_ID=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=SIVAMedicals-RouteTable" --query "RouteTables[0].RouteTableId" --output text)
             import_if_exists "aws_route_table.r" "$RT_ID"
 
-            # Import Route Table Association using required format: subnet_id/route_table_id
             if [ "$SUBNET_ID" != "None" ] && [ "$RT_ID" != "None" ]; then
-              if ! terraform state list | grep -q "aws_route_table_association.a"; then
-                terraform import -var="manual_bucket_name=$BUCKET_NAME" aws_route_table_association.a "$SUBNET_ID/$RT_ID" || true
-              fi
+              import_if_exists "aws_route_table_association.a" "$SUBNET_ID/$RT_ID"
             fi
           fi
+
+          import_if_exists "aws_s3_bucket.data_bucket" "$BUCKET_NAME"
 
       - name: Terraform Apply
         run: terraform apply -auto-approve -input=false -var="manual_bucket_name=${{ steps.discovery.outputs.BUCKET }}"
         working-directory: ./terraform_aws
 
-  kubernetes-deploy:
-    name: "Step 3: Siva Medicals Deployment with Kubernetes"
-    needs: deploy-infrastructure
+  siva-medicals-deployment:
+    name: "3: Siva Medicals Deployment with Kubernetes"
+    needs: terraform-deployment
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
