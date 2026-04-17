@@ -1,4 +1,4 @@
-name: "Siva Medicals CI/CD Pipeline"
+name: "Siva Medicals Automated CI/CD"
 
 on:
   push:
@@ -18,8 +18,8 @@ env:
   STATE_BUCKET: "siva-medicals-tfstate-pravin"
 
 jobs:
-  build-and-push:
-    name: "Step 1: Siva Medicals CI (Docker)"
+  siva-medicals-ci:
+    name: "1: Siva Medicals CI/CD (Docker Build)"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -38,9 +38,9 @@ jobs:
           push: true
           tags: ${{ env.DOCKER_IMAGE }}:latest
 
-  deploy-infrastructure:
-    name: "Step 2: Terraform Infrastructure"
-    needs: build-and-push
+  terraform-deployment:
+    name: "2: Terraform Infrastructure Deployment"
+    needs: siva-medicals-ci
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     outputs:
@@ -97,6 +97,9 @@ jobs:
           INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped,pending" --query "Reservations[].Instances[?State.Name != 'terminated'].InstanceId | [0]" --output text)
           import_if_exists "aws_instance.app_server" "$INSTANCE_ID"
 
+          VOLUME_ID=$(aws ec2 describe-volumes --filters "Name=tag:Name,Values=SIVAMedicals-DataVolume" "Name=status,Values=available,in-use" --query "Volumes[0].VolumeId" --output text)
+          import_if_exists "aws_ebs_volume.data_volume" "$VOLUME_ID"
+
           # Networking (Adopting these prevents EC2 replacement)
           if [ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ]; then
             SUBNET_ID=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=SIVAMedicals-PublicSubnet" --query "Subnets[0].SubnetId" --output text)
@@ -122,7 +125,7 @@ jobs:
         run: terraform apply -auto-approve -input=false -var="manual_bucket_name=${{ steps.discovery.outputs.BUCKET }}"
         working-directory: ./terraform_aws
 
-  siva-medicals-deployment:
+  kubernetes-deployment:
     name: "3: Siva Medicals Deployment with Kubernetes"
     needs: terraform-deployment
     runs-on: ubuntu-latest
@@ -132,8 +135,8 @@ jobs:
 
       - name: Sync S3 Assets
         run: |
-          aws s3 sync frontend/ s3://${{ needs.deploy-infrastructure.outputs.discovered_bucket }}/frontend/ --delete --region ${{ env.AWS_REGION }}
-          aws s3 sync backend/uploads/ s3://${{ needs.deploy-infrastructure.outputs.discovered_bucket }}/backend/uploads/ --delete --region ${{ env.AWS_REGION }}
+          aws s3 sync frontend/ s3://${{ needs.terraform-deployment.outputs.discovered_bucket }}/frontend/ --delete --region ${{ env.AWS_REGION }}
+          aws s3 sync backend/uploads/ s3://${{ needs.terraform-deployment.outputs.discovered_bucket }}/backend/uploads/ --delete --region ${{ env.AWS_REGION }}
 
       - name: Kubernetes Rollout
         uses: appleboy/ssh-action@v1.0.3
@@ -143,4 +146,4 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            sudo kubectl rollout restart deployment/siva-backend
+            sudo kubectl rollout restart deployment/siva-medicals
