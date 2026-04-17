@@ -14,7 +14,8 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   AWS_REGION: "ap-south-2"
   DOCKER_IMAGE: pravinnpci/siva-medicals
-  EXISTING_EIP: "18.60.246.115"
+      EXISTING_EIP: "18.60.246.115"
+      STATE_BUCKET: "siva-medicals-tfstate-pravin"
 
 jobs:
   build-and-push:
@@ -92,7 +93,7 @@ jobs:
           ROLE_NAME=$(aws iam get-role --role-name SIVAMedicals-S3Role --query "Role.RoleName" --output text 2>/dev/null || echo "None")
           KEY_NAME=$(aws ec2 describe-key-pairs --filters "Name=key-name,Values=SIVAMedicals-ec2-key" --query "KeyPairs[0].KeyName" --output text)
           PROFILE_NAME=$(aws iam get-instance-profile --instance-profile-name SIVAMedicals-S3Profile --query "InstanceProfile.InstanceProfileName" --output text 2>/dev/null || echo "None")
-          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped" --query "Reservations[].Instances[0].InstanceId" --output text)
+          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped" --query "Reservations[].Instances[?State.Name != 'terminated'].InstanceId | [0]" --output text)
           
           # Perform Imports
           import_if_exists "aws_vpc.main" "$VPC_ID"
@@ -115,32 +116,49 @@ jobs:
 
             SG_ID=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=SIVAMedicals-EC2-SG" --query "SecurityGroups[0].GroupId" --output text)
             import_if_exists "aws_security_group.ec2_sg" "$SG_ID"
+
+            # Import Route Table Association using required format: subnet_id/route_table_id
+            if [ "$SUBNET_ID" != "None" ] && [ "$RT_ID" != "None" ]; then
+              if ! terraform state list | grep -q "aws_route_table_association.a"; then
+                terraform import -var="manual_bucket_name=$BUCKET_NAME" aws_route_table_association.a "$SUBNET_ID/$RT_ID" || true
+              fi
+            fi
           fi
 
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: terraform apply -auto-approve -input=false -var="manual_bucket_name=${{ env.DISCOVERED_BUCKET }}"
         working-directory: ./terraform_aws
 
-      - name: Refresh Kubernetes Deployment
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      - name: Ensure Instance is Started
+        working-directory: ./terraform_aws
+        run: |
+          INSTANCE_ID=$(terraform output -raw instance_id)
+          echo "Starting instance $INSTANCE_ID..."
+          aws ec2 start-instances --instance-ids $INSTANCE_ID --region ${{ env.AWS_REGION }}
+          aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID --region ${{ env.AWS_REGION }}
+
+      - name: Get S3 Bucket Name
+        id: bucket_name
+        run: echo "NAME=$(terraform output -raw s3_bucket_name)" >> $GITHUB_OUTPUT
+        working-directory: ./terraform_aws
+
+      - name: Sync Website to S3
+        run: |
+          aws s3 sync frontend/ s3://${{ steps.bucket_name.outputs.NAME }}/frontend/ --delete --region ${{ env.AWS_REGION }}
+          aws s3 sync backend/uploads/ s3://${{ steps.bucket_name.outputs.NAME }}/backend/uploads/ --delete --region ${{ env.AWS_REGION }}
+
+  kubernetes-deploy:
+    name: "AWS Deploy (Kubernetes)"
+    needs: deploy-infrastructure
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Rollout Restart K8s Pods
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ env.EXISTING_EIP || '18.60.246.115' }}
+          host: ${{ env.EXISTING_EIP }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             sudo kubectl rollout restart deployment/siva-backend
-
-      - name: Get S3 Bucket Name
-        id: bucket_name
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: echo "NAME=$(terraform output -raw s3_bucket_name)" >> $GITHUB_OUTPUT
-        working-directory: ./terraform_aws
-
-      - name: Sync Website to S3 (Optional)
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          aws s3 sync frontend/ s3://${{ steps.bucket_name.outputs.NAME }}/frontend/ --delete --region ${{ env.AWS_REGION }}
-          aws s3 sync backend/uploads/ s3://${{ steps.bucket_name.outputs.NAME }}/backend/uploads/ --delete --region ${{ env.AWS_REGION }}
