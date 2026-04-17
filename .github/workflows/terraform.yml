@@ -14,12 +14,12 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   AWS_REGION: "ap-south-2"
   DOCKER_IMAGE: pravinnpci/siva-medicals
-      EXISTING_EIP: "18.60.246.115"
-      STATE_BUCKET: "siva-medicals-tfstate-pravin"
+  EXISTING_EIP: "18.60.246.115"
+  STATE_BUCKET: "siva-medicals-tfstate-pravin"
 
 jobs:
   build-and-push:
-    name: "Siva Medicals CI (Docker)"
+    name: "1. Siva Medicals CI (Docker)"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -39,10 +39,12 @@ jobs:
           tags: ${{ env.DOCKER_IMAGE }}:latest
 
   deploy-infrastructure:
-    name: "Terraform Infrastructure"
+    name: "2. Terraform Infrastructure"
     needs: build-and-push
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    outputs:
+      discovered_bucket: ${{ steps.discovery.outputs.BUCKET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,105 +57,58 @@ jobs:
 
       - name: Terraform Init
         run: |
-          # Dynamically configure backend to stop duplicate resources
           terraform init \
-            -backend-config="bucket=siva-medicals-tfstate-pravin" \
+            -backend-config="bucket=${{ env.STATE_BUCKET }}" \
             -backend-config="key=terraform.tfstate" \
-            -backend-config="region=ap-south-2"
+            -backend-config="region=${{ env.AWS_REGION }}"
         working-directory: ./terraform_aws
 
       - name: Terraform Format
         run: terraform fmt -check
         working-directory: ./terraform_aws
 
-      - name: Resource Discovery & Import
+      - name: Discovery & Import
+        id: discovery
         working-directory: ./terraform_aws
         run: |
-          # Discover Bucket first to use in import command
           BUCKET_NAME=$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'siva-medicals-data-hyderabad')].Name | [0]" --output text)
-          if [ "$BUCKET_NAME" == "None" ] || [ -z "$BUCKET_NAME" ]; then
-            BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2-0daf60c3497980e4"
-          fi
-          echo "DISCOVERED_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
-
-          # Helper function to import if resource exists in AWS but not in state
+          [ "$BUCKET_NAME" == "None" ] && BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2-0daf60c3497980e4"
+          echo "BUCKET=$BUCKET_NAME" >> $GITHUB_OUTPUT
+          
           import_if_exists() {
-            local address=$1
-            local id=$2
-            if [ -n "$id" ] && [ "$id" != "None" ]; then
-              if ! terraform state list | grep -q "$address"; then
-                echo "Importing $address ($id)..."
-                terraform import -var="manual_bucket_name=$BUCKET_NAME" "$address" "$id" || true
-              fi
-            fi
+            [ "$2" != "None" ] && ! terraform state list | grep -q "$1" && terraform import -var="manual_bucket_name=${{ steps.discovery.outputs.BUCKET }}" "$1" "$2" || true
           }
 
-          # Discover Resources
           VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=SIVAMedicals-VPC" --query "Vpcs[0].VpcId" --output text)
-          ROLE_NAME=$(aws iam get-role --role-name SIVAMedicals-S3Role --query "Role.RoleName" --output text 2>/dev/null || echo "None")
-          KEY_NAME=$(aws ec2 describe-key-pairs --filters "Name=key-name,Values=SIVAMedicals-ec2-key" --query "KeyPairs[0].KeyName" --output text)
-          PROFILE_NAME=$(aws iam get-instance-profile --instance-profile-name SIVAMedicals-S3Profile --query "InstanceProfile.InstanceProfileName" --output text 2>/dev/null || echo "None")
-          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped" --query "Reservations[].Instances[?State.Name != 'terminated'].InstanceId | [0]" --output text)
-          
-          # Perform Imports
           import_if_exists "aws_vpc.main" "$VPC_ID"
-          import_if_exists "aws_iam_role.ec2_s3_role" "$ROLE_NAME"
-          import_if_exists "aws_key_pair.ec2_key_pair" "$KEY_NAME"
-          import_if_exists "aws_iam_instance_profile.s3_profile" "$PROFILE_NAME"
-          import_if_exists "aws_s3_bucket.data_bucket" "$BUCKET_NAME"
+          
+          ROLE=$(aws iam get-role --role-name SIVAMedicals-S3Role --query "Role.RoleName" --output text 2>/dev/null || echo "None")
+          import_if_exists "aws_iam_role.ec2_s3_role" "$ROLE"
+          
+          KEY=$(aws ec2 describe-key-pairs --filters "Name=key-name,Values=SIVAMedicals-ec2-key" --query "KeyPairs[0].KeyName" --output text)
+          import_if_exists "aws_key_pair.ec2_key_pair" "$KEY"
+
+          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped" --query "Reservations[].Instances[?State.Name != 'terminated'].InstanceId | [0]" --output text)
           import_if_exists "aws_instance.app_server" "$INSTANCE_ID"
 
-          # Discover and Import Networking
-          if [ "$VPC_ID" != "None" ]; then
-            IGW_ID=$(aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[0].InternetGatewayId" --output text)
-            import_if_exists "aws_internet_gateway.gw" "$IGW_ID"
-            
-            RT_ID=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=SIVAMedicals-RouteTable" --query "RouteTables[0].RouteTableId" --output text)
-            import_if_exists "aws_route_table.r" "$RT_ID"
-
-            SUBNET_ID=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=SIVAMedicals-PublicSubnet" --query "Subnets[0].SubnetId" --output text)
-            import_if_exists "aws_subnet.public" "$SUBNET_ID"
-
-            SG_ID=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=SIVAMedicals-EC2-SG" --query "SecurityGroups[0].GroupId" --output text)
-            import_if_exists "aws_security_group.ec2_sg" "$SG_ID"
-
-            # Import Route Table Association using required format: subnet_id/route_table_id
-            if [ "$SUBNET_ID" != "None" ] && [ "$RT_ID" != "None" ]; then
-              if ! terraform state list | grep -q "aws_route_table_association.a"; then
-                terraform import -var="manual_bucket_name=$BUCKET_NAME" aws_route_table_association.a "$SUBNET_ID/$RT_ID" || true
-              fi
-            fi
-          fi
-
       - name: Terraform Apply
-        run: terraform apply -auto-approve -input=false -var="manual_bucket_name=${{ env.DISCOVERED_BUCKET }}"
+        run: terraform apply -auto-approve -input=false -var="manual_bucket_name=${{ steps.discovery.outputs.BUCKET }}"
         working-directory: ./terraform_aws
-
-      - name: Ensure Instance is Started
-        working-directory: ./terraform_aws
-        run: |
-          INSTANCE_ID=$(terraform output -raw instance_id)
-          echo "Starting instance $INSTANCE_ID..."
-          aws ec2 start-instances --instance-ids $INSTANCE_ID --region ${{ env.AWS_REGION }}
-          aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID --region ${{ env.AWS_REGION }}
-
-      - name: Get S3 Bucket Name
-        id: bucket_name
-        run: echo "NAME=$(terraform output -raw s3_bucket_name)" >> $GITHUB_OUTPUT
-        working-directory: ./terraform_aws
-
-      - name: Sync Website to S3
-        run: |
-          aws s3 sync frontend/ s3://${{ steps.bucket_name.outputs.NAME }}/frontend/ --delete --region ${{ env.AWS_REGION }}
-          aws s3 sync backend/uploads/ s3://${{ steps.bucket_name.outputs.NAME }}/backend/uploads/ --delete --region ${{ env.AWS_REGION }}
 
   kubernetes-deploy:
-    name: "AWS Deploy (Kubernetes)"
+    name: "3. AWS Deploy (Kubernetes)"
     needs: deploy-infrastructure
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
-      - name: Rollout Restart K8s Pods
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sync S3 Assets
+        run: |
+          aws s3 sync frontend/ s3://${{ needs.deploy-infrastructure.outputs.discovered_bucket }}/frontend/ --delete --region ${{ env.AWS_REGION }}
+          aws s3 sync backend/uploads/ s3://${{ needs.deploy-infrastructure.outputs.discovered_bucket }}/backend/uploads/ --delete --region ${{ env.AWS_REGION }}
+
+      - name: Rollout K8s
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ env.EXISTING_EIP }}
@@ -161,4 +116,4 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            sudo kubectl rollout restart deployment/siva-backend
+            sudo kubectl rollout restart deployment/siva-medicals
