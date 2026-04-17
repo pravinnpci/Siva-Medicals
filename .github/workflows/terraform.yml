@@ -42,9 +42,15 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.5.0"
+          terraform_wrapper: false
 
       - name: Terraform Init
-        run: terraform init
+        run: |
+          # Dynamically configure backend to stop duplicate resources
+          terraform init \
+            -backend-config="bucket=siva-medicals-tfstate-pravin" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=ap-south-2"
         working-directory: ./terraform_aws
 
       - name: Terraform Format
@@ -60,8 +66,19 @@ jobs:
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: terraform apply -auto-approve -input=false
+        run: terraform apply -auto-approve -input=false -var="manual_bucket_name=siva-medicals-data-hyderabad-ap-south-2-0daf60c3497980e4"
         working-directory: ./terraform_aws
+
+      - name: Refresh Kubernetes Deployment
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.EXISTING_EIP || '18.60.246.115' }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+            sudo kubectl rollout restart deployment/siva-backend
 
       - name: Get S3 Bucket Name
         id: bucket_name

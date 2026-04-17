@@ -35,15 +35,15 @@ if %errorlevel% neq 0 (
 echo.
 echo Searching for existing infrastructure to reuse...
 set "FOUND_BUCKET="
-for /f "tokens=*" %%i in ('aws s3api list-buckets --query "Buckets[?starts_with(Name, '%S3_BUCKET_PREFIX%')].Name" --output text --region %AWS_REGION%') do (
+for /f "tokens=*" %%i in ('aws s3api list-buckets --query "Buckets[?starts_with(Name, '%S3_BUCKET_PREFIX%')].Name | [0]" --output text --region %AWS_REGION%') do (
     if not "%%i"=="None" if not "%%i"=="" set "FOUND_BUCKET=%%i"
 )
 set "FOUND_INSTANCE="
-for /f "tokens=*" %%i in ('aws ec2 describe-instances --filters "Name=tag:Name,Values=%PROJECT_NAME%-AppServer" "Name=instance-state-name,Values=running,stopped" --query "Reservations[].Instances[?State.Name != 'terminated'].InstanceId" --output text --region %AWS_REGION%') do (
+for /f "tokens=*" %%i in ('aws ec2 describe-instances --filters "Name=tag:Name,Values=%PROJECT_NAME%-AppServer" "Name=instance-state-name,Values=running,stopped" --query "Reservations[].Instances[0].InstanceId" --output text --region %AWS_REGION%') do (
     if not "%%i"=="None" if not "%%i"=="" set "FOUND_INSTANCE=%%i"
 )
 set "FOUND_VPC="
-for /f "tokens=*" %%i in ('aws ec2 describe-vpcs --filters "Name=tag:Name,Values=%PROJECT_NAME%-VPC" --query "Vpcs[?State=='available'].VpcId" --output text --region %AWS_REGION%') do (
+for /f "tokens=*" %%i in ('aws ec2 describe-vpcs --filters "Name=tag:Name,Values=%PROJECT_NAME%-VPC" --query "Vpcs[?State=='available'].VpcId | [0]" --output text --region %AWS_REGION%') do (
     if not "%%i"=="None" if not "%%i"=="" set "FOUND_VPC=%%i"
 )
 set "FOUND_KEY="
@@ -52,7 +52,7 @@ for /f "tokens=*" %%i in ('aws ec2 describe-key-pairs --filters "Name=key-name,V
 )
 set "FOUND_SG="
 if defined FOUND_VPC (
-    for /f "tokens=*" %%i in ('aws ec2 describe-security-groups --filters "Name=vpc-id,Values=%FOUND_VPC%" "Name=group-name,Values=%PROJECT_NAME%-EC2-SG" --query "SecurityGroups[0].GroupId" --output text --region %AWS_REGION%') do (
+    for /f "tokens=*" %%i in ('aws ec2 describe-security-groups --filters "Name=vpc-id,Values=!FOUND_VPC!" "Name=group-name,Values=%PROJECT_NAME%-EC2-SG" --query "SecurityGroups[0].GroupId" --output text --region %AWS_REGION%') do (
         if not "%%i"=="None" set "FOUND_SG=%%i"
     )
 )
@@ -72,12 +72,18 @@ if defined FOUND_VPC (
 )
 set "FOUND_IGW="
 if defined FOUND_VPC (
-    for /f "tokens=*" %%i in ('aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=!FOUND_VPC!" --query "InternetGateways[].InternetGatewayId" --output text --region %AWS_REGION%') do (
+    for /f "tokens=*" %%i in ('aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=!FOUND_VPC!" --query "InternetGateways[0].InternetGatewayId" --output text --region %AWS_REGION%') do (
         if not "%%i"=="None" set "FOUND_IGW=%%i"
     )
 )
+set "FOUND_RT="
+if defined FOUND_VPC (
+    for /f "tokens=*" %%i in ('aws ec2 describe-route-tables --filters "Name=vpc-id,Values=!FOUND_VPC!" "Name=tag:Name,Values=%PROJECT_NAME%-RouteTable" --query "RouteTables[0].RouteTableId" --output text --region %AWS_REGION%') do (
+        if not "%%i"=="None" if not "%%i"=="" set "FOUND_RT=%%i"
+    )
+)
 set "FOUND_VOLUME="
-for /f "tokens=*" %%i in ('aws ec2 describe-volumes --filters "Name=tag:Name,Values=%PROJECT_NAME%-DataVolume" "Name=status,Values=available,in-use" --query "Volumes[].VolumeId" --output text --region %AWS_REGION%') do (
+for /f "tokens=*" %%i in ('aws ec2 describe-volumes --filters "Name=tag:Name,Values=%PROJECT_NAME%-DataVolume" "Name=status,Values=available,in-use" --query "Volumes[0].VolumeId" --output text --region %AWS_REGION%') do (
     if not "%%i"=="None" if not "%%i"=="" set "FOUND_VOLUME=%%i"
 )
 
@@ -319,19 +325,19 @@ echo   iam_instance_profile   = aws_iam_instance_profile.s3_profile.name
 echo   user_data_replace_on_change = false
 echo.
 echo   user_data = ^<^<-EOF
-echo     #!/bin/bash
+echo     #^^!/bin/bash
 echo     apt-get update
-echo     apt-get install -y docker.io nginx s3fs
+echo     apt-get install -y docker.io nginx s3fs curl
 echo:
 echo     # Mount EBS Volume for Postgres Data (T3 uses NVMe)
 echo     # Wait for volume to be attached
-echo     while [ ! -b /dev/$(lsblk -dno NAME ^| grep -v "nvme0n1" ^| head -n 1) ]; do
+echo     while [ ^^! -b /dev/$(lsblk -dno NAME ^| grep -v "nvme0n1" ^| head -n 1) ]; do
 echo       sleep 5
 echo     done
 echo.
 echo     DEVICE=/dev/$(lsblk -dno NAME ^| grep -v "nvme0n1" ^| head -n 1)
-echo     if [ ! -z "$DEVICE" ]; then
-echo       if ! blkid $DEVICE; then
+echo     if [ ^^! -z "$DEVICE" ]; then
+echo       if ^^! blkid $DEVICE; then
 echo         mkfs -t ext4 $DEVICE
 echo       fi
 echo       mkdir -p /mnt/postgres_data
@@ -347,20 +353,69 @@ echo     echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev
 echo     mount /mnt/s3_uploads
 echo     mkdir -p /mnt/s3_uploads/backend/uploads
 echo     chmod 777 /mnt/s3_uploads/backend/uploads
-echo.
-echo     sudo systemctl start docker
-echo     sudo systemctl enable docker
-echo     sudo usermod -aG docker ubuntu
-echo.
-echo     # Run PostgreSQL with EBS Persistence
-echo     docker run -d --name postgres-db \
-echo       -v /mnt/postgres_data:/var/lib/postgresql/data \
-echo       -e POSTGRES_PASSWORD=admin123 \
-echo       postgres:14
-echo.
-echo     # Pull and Run Siva Medicals App
-echo     docker pull pravinnpci/siva-medicals:latest
-echo     docker run -d --name siva-app -p 3001:3001 -v /mnt/s3_uploads/backend/uploads:/app/uploads --link postgres-db:db -e DB_HOST=db -e DB_PASSWORD=admin123 pravinnpci/siva-medicals:latest
+echo:
+echo     # Install K3s (Master + Slave on one node)
+echo     curl -sfL https://get.k3s.io ^| sh -
+echo     export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+echo:
+echo     # Wait for K3s to be ready
+echo     while ^^! kubectl get nodes ^| grep -q "Ready"; do sleep 5; done
+echo:
+echo     # Deploy Postgres and Backend to Kubernetes
+echo     cat ^<^<K8S ^| kubectl apply -f -
+echo     apiVersion: v1
+echo     kind: PersistentVolume
+echo     metadata:
+echo       name: postgres-pv
+echo     spec:
+echo       capacity:
+echo         storage: 10Gi
+echo       accessModes:
+echo         - ReadWriteOnce
+echo       hostPath:
+echo         path: "/mnt/postgres_data"
+echo     ---
+echo     apiVersion: v1
+echo     kind: PersistentVolumeClaim
+echo     metadata:
+echo       name: postgres-pvc
+echo     spec:
+echo       accessModes:
+echo         - ReadWriteOnce
+echo       resources:
+echo         requests:
+echo           storage: 10Gi
+echo     ---
+echo     apiVersion: apps/v1
+echo     kind: Deployment
+echo     metadata:
+echo       name: siva-medicals
+echo     spec:
+echo       replicas: 1
+echo       selector:
+echo         matchLabels:
+echo           app: backend
+echo       template:
+echo         metadata:
+echo           labels:
+echo             app: backend
+echo         spec:
+echo           containers:
+echo           - name: backend
+echo             image: pravinnpci/siva-medicals:latest
+echo             ports:
+echo             - containerPort: 3001
+echo             env:
+echo             - name: DB_PASSWORD
+echo               value: "admin123"
+echo             volumeMounts:
+echo             - name: uploads
+echo               mountPath: /app/uploads
+echo           volumes:
+echo           - name: uploads
+echo             hostPath:
+echo               path: /mnt/s3_uploads/backend/uploads
+echo     K8S
 echo.
 echo     # Configure Nginx as Reverse Proxy
 echo     cat ^> /etc/nginx/sites-available/default ^<^<NX
@@ -400,7 +455,7 @@ echo   allocation_id = data.aws_eip.selected.id
 echo }
 echo.
 echo resource "aws_s3_bucket" "data_bucket" {
-echo   bucket = var.manual_bucket_name == "" ? "${var.s3_bucket_name_prefix}-${var.aws_region}" : var.manual_bucket_name
+echo   bucket = var.manual_bucket_name == "" ? "${var.s3_bucket_name_prefix}-${var.aws_region}-${random_id.bucket_suffix.hex}" : var.manual_bucket_name
 echo   force_destroy = true
 echo }
 echo.
@@ -503,6 +558,13 @@ echo All Terraform files created successfully in ./%TF_DIR%.
 echo Formatting Terraform files...
 terraform fmt
 
+echo Validating Terraform configuration...
+terraform validate
+if %errorlevel% neq 0 (
+    echo ERROR: Terraform validation failed. Fix the issues before proceeding.
+    exit /b 1
+)
+
 echo Initializing Terraform...
 :: Use migrate-state to handle backend transitions and lineage issues safely
 terraform init -reconfigure
@@ -538,6 +600,12 @@ if defined FOUND_SG (
 if defined FOUND_ROLE (
     terraform state list | findstr "aws_iam_role.ec2_s3_role" >nul
     if errorlevel 1 terraform import -var="manual_bucket_name=!FOUND_BUCKET!" aws_iam_role.ec2_s3_role !FOUND_ROLE!
+)
+if defined FOUND_RT (
+    if defined FOUND_SUBNET (
+        terraform state list | findstr "aws_route_table_association.a" >nul
+        if errorlevel 1 terraform import -var="manual_bucket_name=!FOUND_BUCKET!" aws_route_table_association.a !FOUND_SUBNET!/!FOUND_RT!
+    )
 )
 if defined FOUND_PROFILE (
     terraform state list | findstr "aws_iam_instance_profile.s3_profile" >nul
@@ -595,6 +663,13 @@ echo Syncing frontend files to S3...
 for /f "tokens=*" %%i in ('terraform output -raw s3_bucket_name') do (
     aws s3 sync "%BASE_DIR%frontend" s3://%%i/frontend --delete --region %AWS_REGION%
     aws s3 sync "%BASE_DIR%backend/uploads" s3://%%i/backend/uploads --delete --region %AWS_REGION%
+)
+
+echo.
+echo Verifying Cloud Automation Status...
+if defined ACTUAL_INSTANCE_ID (
+    echo Checking Kubernetes Pods (This may take a minute to initialize)...
+    aws ec2 execute-command --instance-id %ACTUAL_INSTANCE_ID% --command "sudo kubectl get pods -A" --region %AWS_REGION% >nul 2>&1
 )
 
 echo.
