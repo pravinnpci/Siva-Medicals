@@ -39,7 +39,7 @@ for /f "tokens=*" %%i in ('aws s3api list-buckets --query "Buckets[?starts_with(
     if not "%%i"=="None" if not "%%i"=="" set "FOUND_BUCKET=%%i"
 )
 set "FOUND_INSTANCE="
-for /f "tokens=*" %%i in ('aws ec2 describe-instances --filters "Name=tag:Name,Values=%PROJECT_NAME%-AppServer" --query "Reservations[].Instances[?State.Name ^^!= 'terminated'].InstanceId | [0]" --output text --region %AWS_REGION%') do (
+for /f "tokens=*" %%i in ('aws ec2 describe-instances --filters "Name=tag:Name,Values=%PROJECT_NAME%-AppServer" --query "Reservations[].Instances[?State.Name != 'terminated'].InstanceId | [0]" --output text --region %AWS_REGION%') do (
     if not "%%i"=="None" if not "%%i"=="" set "FOUND_INSTANCE=%%i"
 )
 set "FOUND_VPC="

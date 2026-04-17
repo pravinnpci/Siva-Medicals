@@ -39,7 +39,7 @@ jobs:
           tags: ${{ env.DOCKER_IMAGE }}:latest
 
   deploy-infrastructure:
-    name: "Step 2: Terraform Infrastructure"
+    name: "Step 2: Terraform Deployment"
     needs: build-and-push
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -87,7 +87,7 @@ jobs:
           KEY=$(aws ec2 describe-key-pairs --filters "Name=key-name,Values=SIVAMedicals-ec2-key" --query "KeyPairs[0].KeyName" --output text)
           import_if_exists "aws_key_pair.ec2_key_pair" "$KEY"
 
-          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped,pending" --query "Reservations[0].Instances[0].InstanceId" --output text)
+          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped,pending" --query "Reservations[].Instances[?State.Name != 'terminated'].InstanceId | [0]" --output text)
           import_if_exists "aws_instance.app_server" "$INSTANCE_ID"
 
           if [ "$VPC_ID" != "None" ]; then
@@ -99,12 +99,20 @@ jobs:
 
             SG_ID=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=SIVAMedicals-EC2-SG" --query "SecurityGroups[0].GroupId" --output text)
             import_if_exists "aws_security_group.ec2_sg" "$SG_ID"
+
+            RT_ID=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=SIVAMedicals-RouteTable" --query "RouteTables[0].RouteTableId" --output text)
+            import_if_exists "aws_route_table.r" "$RT_ID"
+
+            # Import Route Table Association using required format: subnet_id/route_table_id
+            if [ "$SUBNET_ID" != "None" ] && [ "$RT_ID" != "None" ]; then
+              if ! terraform state list | grep -q "aws_route_table_association.a"; then
+                terraform import -var="manual_bucket_name=$BUCKET_NAME" aws_route_table_association.a "$SUBNET_ID/$RT_ID" || true
+              fi
+            fi
           fi
 
-          import_if_exists "aws_s3_bucket.data_bucket" "$BUCKET_NAME"
-
       - name: Terraform Apply
-        run: terraform apply -auto-approve -input=false -var="manual_bucket_name=${{ steps.discovery.outputs.BUCKET || 'siva-medicals-data-hyderabad-ap-south-2-0daf60c3497980e4' }}"
+        run: terraform apply -auto-approve -input=false -var="manual_bucket_name=${{ steps.discovery.outputs.BUCKET }}"
         working-directory: ./terraform_aws
 
   kubernetes-deploy:
