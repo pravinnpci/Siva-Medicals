@@ -84,11 +84,13 @@ jobs:
           VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=SIVAMedicals-VPC" --query "Vpcs[0].VpcId" --output text)
           ROLE_NAME=$(aws iam get-role --role-name SIVAMedicals-S3Role --query "Role.RoleName" --output text 2>/dev/null || echo "None")
           KEY_NAME=$(aws ec2 describe-key-pairs --filters "Name=key-name,Values=SIVAMedicals-ec2-key" --query "KeyPairs[0].KeyName" --output text)
+          PROFILE_NAME=$(aws iam get-instance-profile --instance-profile-name SIVAMedicals-S3Profile --query "InstanceProfile.InstanceProfileName" --output text 2>/dev/null || echo "None")
           
           # Perform Imports
           import_if_exists "aws_vpc.main" "$VPC_ID"
           import_if_exists "aws_iam_role.ec2_s3_role" "$ROLE_NAME"
           import_if_exists "aws_key_pair.ec2_key_pair" "$KEY_NAME"
+          import_if_exists "aws_iam_instance_profile.s3_profile" "$PROFILE_NAME"
 
           # Discover and Import Networking
           if [ "$VPC_ID" != "None" ]; then
@@ -97,6 +99,12 @@ jobs:
             
             RT_ID=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=SIVAMedicals-RouteTable" --query "RouteTables[0].RouteTableId" --output text)
             import_if_exists "aws_route_table.r" "$RT_ID"
+
+            SUBNET_ID=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=SIVAMedicals-PublicSubnet" --query "Subnets[0].SubnetId" --output text)
+            import_if_exists "aws_subnet.public" "$SUBNET_ID"
+
+            SG_ID=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=SIVAMedicals-EC2-SG" --query "SecurityGroups[0].GroupId" --output text)
+            import_if_exists "aws_security_group.ec2_sg" "$SG_ID"
           fi
 
       - name: Terraform Apply
