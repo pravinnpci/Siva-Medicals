@@ -135,6 +135,7 @@ jobs:
 
       - name: Sync S3 Assets
         run: |
+          mkdir -p backend/uploads/
           aws s3 sync frontend/ s3://${{ needs.terraform-deployment.outputs.discovered_bucket }}/frontend/ --delete --region ${{ env.AWS_REGION }}
           aws s3 sync backend/uploads/ s3://${{ needs.terraform-deployment.outputs.discovered_bucket }}/backend/uploads/ --delete --region ${{ env.AWS_REGION }}
 
