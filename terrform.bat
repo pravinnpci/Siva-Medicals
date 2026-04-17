@@ -39,11 +39,11 @@ for /f "tokens=*" %%i in ('aws s3api list-buckets --query "Buckets[?starts_with(
     if not "%%i"=="None" if not "%%i"=="" set "FOUND_BUCKET=%%i"
 )
 set "FOUND_INSTANCE="
-for /f "tokens=*" %%i in ('aws ec2 describe-instances --filters "Name=tag:Name,Values=%PROJECT_NAME%-AppServer" "Name=instance-state-name,Values=running,stopped" --query "Reservations[].Instances[].InstanceId" --output text --region %AWS_REGION%') do (
+for /f "tokens=*" %%i in ('aws ec2 describe-instances --filters "Name=tag:Name,Values=%PROJECT_NAME%-AppServer" "Name=instance-state-name,Values=running,stopped" --query "Reservations[0].Instances[0].InstanceId" --output text --region %AWS_REGION%') do (
     if not "%%i"=="None" if not "%%i"=="" set "FOUND_INSTANCE=%%i"
 )
 set "FOUND_VPC="
-for /f "tokens=*" %%i in ('aws ec2 describe-vpcs --filters "Name=tag:Name,Values=%PROJECT_NAME%-VPC" --query "Vpcs[?State=='available'].VpcId | [0]" --output text --region %AWS_REGION%') do (
+for /f "tokens=*" %%i in ('aws ec2 describe-vpcs --filters "Name=tag:Name,Values=%PROJECT_NAME%-VPC" --query "Vpcs[?State=='available'].VpcId" --output text --region %AWS_REGION%') do (
     if not "%%i"=="None" if not "%%i"=="" set "FOUND_VPC=%%i"
 )
 set "FOUND_KEY="
