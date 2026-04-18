@@ -32,7 +32,7 @@ resource "local_file" "private_key" {
 # Upload the public key to AWS to create an EC2 Key Pair
 resource "aws_key_pair" "ec2_key_pair" {
   key_name   = "${var.project_name}-ec2-key"
-  public_key = tls_private_key.rsa_key.public_key_openssh
+  public_key = var.public_key_data != "" ? var.public_key_data : tls_private_key.rsa_key.public_key_openssh
   
   # Prevent Terraform from replacing the key pair if it already exists,
   # as replacing a launch-time key pair does not update running instances.
@@ -181,7 +181,7 @@ resource "aws_instance" "app_server" {
     apt-get install -y nginx s3fs curl
 
     # Sync SSH Key (Ensures CI/CD can always connect)
-    echo "${aws_key_pair.ec2_key_pair.public_key}" >> /home/ubuntu/.ssh/authorized_keys
+    echo "${var.public_key_data != "" ? var.public_key_data : tls_private_key.rsa_key.public_key_openssh}" >> /home/ubuntu/.ssh/authorized_keys
 
     # Mount EBS Volume for Postgres Data (T3 uses NVMe)
     while [ ! -b /dev/$(lsblk -dno NAME | grep -v "nvme0n1" | head -n 1) ]; do
