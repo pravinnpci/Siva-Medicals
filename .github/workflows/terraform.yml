@@ -82,7 +82,8 @@ jobs:
             if [ -n "$2" ] && [ "$2" != "None" ] && [ "$2" != "" ]; then
               if ! terraform state list | grep -Fq "$1" >/dev/null; then
                 echo "Importing $1 ($2)..."
-                terraform import -var="manual_bucket_name=$BUCKET_NAME" -var="public_key_data=$
+                terraform import -var="manual_bucket_name=$BUCKET_NAME" -var="public_key_data=$PUBLIC_KEY_DATA" "$1" "$2" || true
+              fi
             fi
           }
 
@@ -120,7 +121,8 @@ jobs:
 
             if [ "$SUBNET_ID" != "None" ] && [ "$RT_ID" != "None" ] && [ -n "$SUBNET_ID" ]; then
               if ! terraform state list | grep -Fq "aws_route_table_association.a" >/dev/null; then
-                terraform import -var="manual_bucket_name=$BUCKET_NAME" -var="public_key_data=${{
+                terraform import -var="manual_bucket_name=$BUCKET_NAME" -var="public_key_data=$PUBLIC_KEY_DATA" aws_route_table_association.a "$SUBNET_ID/$RT_ID" || true
+              fi
             fi
           fi
 
