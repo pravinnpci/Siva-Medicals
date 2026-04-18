@@ -182,4 +182,4 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            sudo kubectl rollout restart deployment/siva-medicals
+            sudo k3s kubectl rollout restart deployment/siva-medicals
