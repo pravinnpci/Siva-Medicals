@@ -455,7 +455,7 @@ echo   allocation_id = data.aws_eip.selected.id
 echo }
 echo.
 echo resource "aws_s3_bucket" "data_bucket" {
-echo   bucket = var.manual_bucket_name == "" ? "${var.s3_bucket_name_prefix}-${var.aws_region}-${random_id.bucket_suffix.hex}" : var.manual_bucket_name
+echo   bucket = var.manual_bucket_name == "" ? "siva-medicals-data-hyderabad-ap-south-2" : var.manual_bucket_name
 echo   force_destroy = true
 echo }
 echo.

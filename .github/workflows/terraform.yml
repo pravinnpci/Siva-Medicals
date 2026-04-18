@@ -66,15 +66,24 @@ jobs:
         id: discovery
         working-directory: ./terraform_aws
         run: |
-          BUCKET_NAME=$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'siva-medicals-data-hyderabad')].Name | [0]" --output text)
-          if [ "$BUCKET_NAME" == "None" ] || [ -z "$BUCKET_NAME" ]; then BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2"; fi
+          # Target the specific bucket name you provided
+          BUCKET_NAME=$(aws s3api list-buckets --query "Buckets[?Name=='siva-medicals-data-hyderabad-ap-south-2'].Name | [0]" --output text)
+          
+          # Fallback to prefix if exact name not found
+          if [ "$BUCKET_NAME" == "None" ] || [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" == "null" ]; then
+            BUCKET_NAME=$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'siva-medicals-data-hyderabad')].Name | [0]" --output text)
+          fi
+
+          # Final fallback to standard name
+          [ "$BUCKET_NAME" == "None" ] || [ -z "$BUCKET_NAME" ] && BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2"
+          
           echo "BUCKET=$BUCKET_NAME" >> $GITHUB_OUTPUT
           
           import_if_exists() {
-            if [ -n "$2" ] && [ "$2" != "None" ] && [ "$2" != "" ]; then
-              if ! terraform state list | grep -q "$1"; then
+            if [ -n "$2" ] && [ "$2" != "None" ] && [ "$2" != "" ] && [ "$2" != "null" ]; then
+              if ! terraform state list | grep -Fq "$1"; then
                 echo "Importing $1 ($2)..."
-                terraform import -var="manual_bucket_name=$BUCKET_NAME" "$1" "$2" || true
+                terraform import -var="manual_bucket_name=$BUCKET_NAME" "$1" "$2" || echo "Import failed for $1, moving on..."
               fi
             fi
           }
@@ -110,13 +119,16 @@ jobs:
             RT_ID=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=SIVAMedicals-RouteTable" --query "RouteTables[].RouteTableId | [0]" --output text)
             import_if_exists "aws_route_table.r" "$RT_ID"
 
-            if [ "$SUBNET_ID" != "None" ] && [ "$RT_ID" != "None" ]; then
-              if ! terraform state list | grep -q "aws_route_table_association.a"; then
-                echo "Importing aws_route_table_association.a..."
+            if [ "$SUBNET_ID" != "None" ] && [ "$RT_ID" != "None" ] && [ -n "$SUBNET_ID" ]; then
+              if ! terraform state list | grep -Fq "aws_route_table_association.a"; then
+                echo "Importing aws_route_table_association.a ($SUBNET_ID/$RT_ID)..."
                 terraform import -var="manual_bucket_name=$BUCKET_NAME" aws_route_table_association.a "$SUBNET_ID/$RT_ID" || true
               fi
             fi
           fi
+
+          # Explicitly adopt the bucket to prevent creation conflicts
+          import_if_exists "aws_s3_bucket.data_bucket" "$BUCKET_NAME"
 
       - name: Terraform Apply
         run: terraform apply -auto-approve -input=false -var="manual_bucket_name=${{ steps.discovery.outputs.BUCKET }}"
