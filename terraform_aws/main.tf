@@ -33,6 +33,12 @@ resource "local_file" "private_key" {
 resource "aws_key_pair" "ec2_key_pair" {
   key_name   = "${var.project_name}-ec2-key"
   public_key = tls_private_key.rsa_key.public_key_openssh
+  
+  # Prevent Terraform from replacing the key pair if it already exists,
+  # as replacing a launch-time key pair does not update running instances.
+  lifecycle {
+    ignore_changes = [public_key]
+  }
 }
 
 # IAM Role for S3 Access
@@ -41,8 +47,8 @@ resource "aws_iam_role" "ec2_s3_role" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
       Principal = { Service = "ec2.amazonaws.com" }
     }]
   })
@@ -68,7 +74,7 @@ resource "aws_iam_instance_profile" "s3_profile" {
 
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
-  tags = {
+  tags       = {
     Name = "${var.project_name}-VPC"
   }
 }
@@ -78,15 +84,18 @@ resource "aws_subnet" "public" {
   cidr_block              = "10.0.1.0/24"
   map_public_ip_on_launch = true
   availability_zone       = "${var.aws_region}a"
-  tags = {
+  tags                    = {
     Name = "${var.project_name}-PublicSubnet"
   }
 }
 
 resource "aws_internet_gateway" "gw" {
   vpc_id = aws_vpc.main.id
-  tags = {
+  tags   = {
     Name = "${var.project_name}-IGW"
+  }
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -97,7 +106,7 @@ resource "aws_route_table" "r" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.gw.id
   }
-  tags = {
+  tags   = {
     Name = "${var.project_name}-RouteTable"
   }
 }
@@ -153,31 +162,138 @@ resource "aws_instance" "app_server" {
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
   iam_instance_profile   = aws_iam_instance_profile.s3_profile.name
 
+  user_data_replace_on_change = false
   user_data = <<-EOF
     #!/bin/bash
-    sudo apt-get update
-    sudo apt-get install -y docker.io nginx s3fs
+    set -e
 
-    # Mount S3 Bucket for Uploads
-    mkdir -p /mnt/s3_uploads
-    sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
-    echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com 0 0" >> /etc/fstab
-    mount /mnt/s3_uploads
+    # Create Swap Space (Critical for t3.micro/1GB RAM)
+    if [ ! -f /swapfile ]; then
+      fallocate -l 2G /swapfile
+      chmod 600 /swapfile
+      mkswap /swapfile
+      swapon /swapfile
+      echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    fi
+
+    apt-get update
+    # Install only host essentials. K3s handles containerization.
+    apt-get install -y nginx s3fs curl
+
+    # Sync SSH Key (Ensures CI/CD can always connect)
+    echo "${aws_key_pair.ec2_key_pair.public_key}" >> /home/ubuntu/.ssh/authorized_keys
+
+    # Mount EBS Volume for Postgres Data (T3 uses NVMe)
+    while [ ! -b /dev/$(lsblk -dno NAME | grep -v "nvme0n1" | head -n 1) ]; do
+      sleep 5
+    done
+    DEVICE=/dev/$(lsblk -dno NAME | grep -v "nvme0n1" | head -n 1)
+    if [ ! -z "$DEVICE" ]; then
+      if ! blkid $DEVICE; then
+        mkfs -t ext4 $DEVICE
+      fi
+      mkdir -p /mnt/postgres_data
+      mount $DEVICE /mnt/postgres_data
+      echo "$DEVICE /mnt/postgres_data ext4 defaults,nofail 0 2" >> /etc/fstab
+      chown -R 999:999 /mnt/postgres_data
+    fi
+
+    # Setup S3 mount
     mkdir -p /mnt/s3_uploads/backend/uploads
     chmod 777 /mnt/s3_uploads/backend/uploads
+    sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf || true
+    echo "s3fs#siva-medicals-data-hyderabad-ap-south-2 /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=ap-south-2,url=https://s3.ap-south-2.amazonaws.com 0 0" >> /etc/fstab
+    mount -a || true
 
-    sudo systemctl start docker
-    sudo systemctl enable docker
-    sudo usermod -aG docker ubuntu
+    # Install K3s (Master + Slave on one node) - Disable Traefik to save RAM
+    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --disable traefik" sh -
+    
+    # Create kubectl symlink immediately
+    ln -s /usr/local/bin/k3s /usr/local/bin/kubectl || true
+    
+    # Wait for K3s readiness
+    export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+    for i in {1..30}; do
+       if command -v kubectl >/dev/null 2>&1 && kubectl get nodes | grep -q "Ready"; then break; fi
+       sleep 10
+    done
 
-    # Run PostgreSQL with Persistence
-    docker run -d --name postgres-db \
-      -e POSTGRES_PASSWORD=admin123 \
-      postgres:14
-
-    # Pull and Run Siva Medicals App
-    docker pull pravinnpci/siva-medicals:latest
-    docker run -d --name siva-app -p 3001:3001 -v /mnt/s3_uploads/backend/uploads:/app/uploads --link postgres-db:db -e DB_HOST=db -e DB_PASSWORD=admin123 pravinnpci/siva-medicals:latest
+    # Deploy to Kubernetes
+    cat <<K8S | /usr/local/bin/k3s kubectl apply -f -
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: postgres-pv
+    spec:
+      capacity:
+        storage: 10Gi
+      accessModes: [ReadWriteOnce]
+      hostPath:
+        path: "/mnt/postgres_data"
+    ---
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: postgres-pvc
+    spec:
+      accessModes: [ReadWriteOnce]
+      resources:
+        requests:
+          storage: 10Gi
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: db
+    spec:
+      selector: { app: postgres }
+      ports: [{ port: 5432 }]
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: postgres
+    spec:
+      selector: { matchLabels: { app: postgres } }
+      template:
+        metadata: { labels: { app: postgres } }
+        spec:
+          containers:
+          - name: postgres
+            image: postgres:14
+            env: [{ name: POSTGRES_PASSWORD, value: "admin123" }]
+            volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
+          volumes: [{ name: data, persistentVolumeClaim: { claimName: postgres-pvc } }]
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: backend-service
+    spec:
+      type: NodePort
+      selector: { app: backend }
+      ports: [{ port: 3001, targetPort: 3001, nodePort: 30001 }]
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: siva-medicals
+    spec:
+      selector: { matchLabels: { app: backend } }
+      template:
+        metadata: { labels: { app: backend } }
+        spec:
+          containers:
+          - name: backend
+            image: pravinnpci/siva-medicals:latest
+            imagePullPolicy: Always
+            ports: [{ containerPort: 3001 }]
+            env:
+            - { name: DB_HOST, value: "db" }
+            - { name: DB_PASSWORD, value: "admin123" }
+            volumeMounts: [{ name: uploads, mountPath: /app/uploads }]
+          volumes: [{ name: uploads, hostPath: { path: /mnt/s3_uploads/backend/uploads } }]
+    K8S
 
     # Configure Nginx as Reverse Proxy
     cat > /etc/nginx/sites-available/default <<NX
@@ -191,19 +307,19 @@ resource "aws_instance" "app_server" {
             alias /mnt/s3_uploads/backend/uploads/;
         }
         location /api {
-            proxy_pass http://localhost:3001;
+            proxy_pass http://localhost:30001;
         }
     }
     NX
     systemctl restart nginx
-    EOF
+  EOF
 
   tags = {
     Name = "${var.project_name}-AppServer"
   }
-
   lifecycle {
     ignore_changes = [ami]
+    prevent_destroy = true
   }
 }
 
@@ -216,9 +332,27 @@ resource "aws_eip_association" "eip_assoc" {
   allocation_id = data.aws_eip.selected.id
 }
 
+resource "aws_ebs_volume" "data_volume" {
+  availability_zone = aws_instance.app_server.availability_zone
+  size              = 10
+  tags = {
+    Name = "${var.project_name}-DataVolume"
+  }
+}
+
+resource "aws_volume_attachment" "ebs_att" {
+  device_name = "/dev/sdh"
+  volume_id   = aws_ebs_volume.data_volume.id
+  instance_id = aws_instance.app_server.id
+  force_detach = true
+}
+
 resource "aws_s3_bucket" "data_bucket" {
-  bucket        = var.manual_bucket_name != "" ? var.manual_bucket_name : "${var.s3_bucket_name_prefix}-${var.aws_region}"
+  bucket = var.manual_bucket_name == "" ? "siva-medicals-data-hyderabad-ap-south-2" : var.manual_bucket_name
   force_destroy = true
+  tags   = {
+    Name = "${var.project_name}-DataBucket"
+  }
 }
 
 resource "aws_s3_bucket_website_configuration" "data_bucket_web" {
@@ -228,7 +362,7 @@ resource "aws_s3_bucket_website_configuration" "data_bucket_web" {
 }
 
 resource "aws_s3_bucket_public_access_block" "data_bucket_access" {
-  bucket                  = aws_s3_bucket.data_bucket.id
+  bucket = aws_s3_bucket.data_bucket.id
   block_public_acls       = false
   block_public_policy     = false
   ignore_public_acls      = false
@@ -237,7 +371,7 @@ resource "aws_s3_bucket_public_access_block" "data_bucket_access" {
 
 resource "aws_s3_bucket_policy" "allow_public_access" {
   depends_on = [aws_s3_bucket_public_access_block.data_bucket_access]
-  bucket     = aws_s3_bucket.data_bucket.id
+  bucket = aws_s3_bucket.data_bucket.id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -248,6 +382,7 @@ resource "aws_s3_bucket_policy" "allow_public_access" {
     }]
   })
 }
+
 resource "aws_s3_bucket_ownership_controls" "data_bucket_oc" {
   bucket = aws_s3_bucket.data_bucket.id
   rule {

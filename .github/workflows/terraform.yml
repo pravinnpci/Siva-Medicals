@@ -176,11 +176,28 @@ jobs:
           host: ${{ env.EXISTING_EIP }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 20m
           script: |
-            echo "Waiting for K3s installation to complete..."
-            for i in {1..60}; do
-              if command -v k3s >/dev/null 2>&1; then break; fi
-              echo "K3s binary not found yet, retrying in 10s... ($i/60)"
-              sleep 10
-            done
-            sudo $(command -v k3s) kubectl rollout restart deployment/siva-medicals
+            # Check if K3s/Kubectl is installed
+            if ! command -v k3s >/dev/null 2>&1; then
+              echo "K3s not found. Checking if installation is in progress..."
+              for i in {1..30}; do
+                if [ -f /usr/local/bin/k3s ]; then break; fi
+                echo "Waiting for UserData to install K3s... ($i/30)"
+                sleep 10
+              done
+            fi
+
+            # Final check and fallback installation
+            if ! command -v k3s >/dev/null 2>&1 && [ ! -f /usr/local/bin/k3s ]; then
+              echo "K3s still missing. Installing now..."
+              curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --disable traefik" sh -
+            fi
+
+            # Ensure kubectl symlink exists
+            if ! command -v kubectl >/dev/null 2>&1; then
+              sudo ln -s /usr/local/bin/k3s /usr/local/bin/kubectl || true
+            fi
+
+            echo "Applying rollout restart..."
+            sudo kubectl rollout restart deployment/siva-medicals
