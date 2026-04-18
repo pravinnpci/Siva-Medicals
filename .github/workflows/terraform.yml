@@ -70,6 +70,7 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > private.pem
           chmod 600 private.pem
           PUB_KEY=$(ssh-keygen -y -f private.pem)
+          export PUBLIC_KEY_DATA="$PUB_KEY"
           echo "PUBLIC_KEY_DATA=$PUB_KEY" >> $GITHUB_ENV
           echo "$PUB_KEY" > public.pub
 
