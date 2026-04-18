@@ -100,7 +100,7 @@ jobs:
           KEY=$(aws ec2 describe-key-pairs --filters "Name=key-name,Values=SIVAMedicals-ec2-key" --query "KeyPairs[0].KeyName" --output text)
           import_if_exists "aws_key_pair.ec2_key_pair" "$KEY"
 
-          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped,pending" --query "Reservations[0].Instances[0].InstanceId" --output text)
+          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped,pending" --query "Reservations[].Instances[].InstanceId | [0]" --output text)
           import_if_exists "aws_instance.app_server" "$INSTANCE_ID"
 
           VOLUME_ID=$(aws ec2 describe-volumes --filters "Name=tag:Name,Values=SIVAMedicals-DataVolume" "Name=status,Values=available,in-use" --query "Volumes[0].VolumeId" --output text)
@@ -163,7 +163,7 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > private.pem
           chmod 600 private.pem
           ssh-keygen -y -f private.pem > public.pub
-          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" --query "Reservations[0].Instances[0].InstanceId" --output text --region ${{ env.AWS_REGION }})
+          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped,pending" --query "Reservations[].Instances[].InstanceId | [0]" --output text --region ${{ env.AWS_REGION }})
           aws ec2-instance-connect send-ssh-public-key \
             --instance-id "$INSTANCE_ID" \
             --instance-os-user ubuntu \
