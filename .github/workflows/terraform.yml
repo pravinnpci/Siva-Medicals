@@ -97,7 +97,7 @@ jobs:
           PROFILE=$(aws iam get-instance-profile --instance-profile-name SIVAMedicals-S3Profile --query "InstanceProfile.InstanceProfileName" --output text 2>/dev/null || echo "None")
           import_if_exists "aws_iam_instance_profile.s3_profile" "$PROFILE"
 
-          KEY=$(aws ec2 describe-key-pairs --filters "Name=key-name,Values=SIVAMedicals-ec2-key" --query "KeyPairs[0].KeyName" --output text)
+          KEY=$(aws ec2 describe-key-pairs --filters "Name=key-name,Values=sivamedical" --query "KeyPairs[0].KeyName" --output text)
           import_if_exists "aws_key_pair.ec2_key_pair" "$KEY"
 
           INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped,pending" --query "Reservations[].Instances[].InstanceId | [0]" --output text)
@@ -205,6 +205,13 @@ jobs:
             if sudo /usr/local/bin/kubectl get deployment siva-medicals >/dev/null 2>&1; then
               echo "Deployment found. Performing rollout restart..."
               sudo /usr/local/bin/kubectl rollout restart deployment/siva-medicals
+              
+              echo "Waiting for rollout to complete..."
+              sudo /usr/local/bin/kubectl rollout status deployment/siva-medicals --timeout=2m
+
+              echo "Checking backend logs for database connection status..."
+              # Tail the last 100 lines and look for database-related keywords
+              sudo /usr/local/bin/kubectl logs deployment/siva-medicals --tail=100 | grep -iE "database|connection|postgres"
             else
               echo "Deployment 'siva-medicals' not found yet. It might still be initializing from UserData."
               echo "Initial pods will pull the latest image automatically upon creation."

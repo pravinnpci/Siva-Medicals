@@ -25,13 +25,13 @@ resource "tls_private_key" "rsa_key" {
 # Save the private key to a local file
 resource "local_file" "private_key" {
   content         = tls_private_key.rsa_key.private_key_pem
-  filename        = "sivamedicals_ec2_key.pem"
+  filename        = "sivamedical.pem"
   file_permission = "0400" # Important for SSH access
 }
 
 # Upload the public key to AWS to create an EC2 Key Pair
 resource "aws_key_pair" "ec2_key_pair" {
-  key_name   = "${var.project_name}-ec2-key"
+  key_name   = "sivamedical"
   public_key = var.public_key_data != "" ? var.public_key_data : tls_private_key.rsa_key.public_key_openssh
   
   # Prevent Terraform from replacing the key pair if it already exists,
