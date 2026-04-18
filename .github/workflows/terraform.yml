@@ -1,7 +1,4 @@
-name: "Siva Medicals 3-Stage Sequential CI/CD"3-Stage Sequential CI/CD"3-Stage Sequential CI/CD"3-Stage Sequential CI/CD"
-on:
-on:
-on:
+name: "Siva Medicals 3-Stage Sequential CI/CD"
 on:
   push:
     branches:
@@ -18,12 +15,9 @@ env:
   DOCKER_IMAGE: pravinnpci/siva-medicals
   EXISTING_EIP: "18.60.246.115"
   STATE_BUCKET: "siva-medicals-tfstate-pravin"
- Medicals CI/CD"
-    runs-on: ubuntulatest
-jobs: Medicals CI/CD"
-    runs-on: ubuntulatest
-  siva-medicals-ci Medicals CI/CD"
-    runs-on: ubuntu:latest
+
+jobs:
+  siva-medicals-ci:
     name: "1: Siva Medicals CI/CD"
     runs-on: ubuntu-latest
     steps:
@@ -37,17 +31,14 @@ jobs: Medicals CI/CD"
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and Push Docker Image
-        uses: docker/build-
-push-action@v5
-    needs:  iva medicals-      with:
+        uses: docker/build-push-action@v5
+        with:
           context: .
+          push: true
+          tags: ${{ env.DOCKER_IMAGE }}:latest
 
-    needs:  iva medicals-        push: true
-          tags: ${{ env.DOC
-KER_IMAGE }}:latest
-    needs: ivamedicals-
   terraform-infrastructure:
-    name: "2: Terraform Deployment"
+    name: "Step 2: Terraform Infrastructure"
     needs: siva-medicals-ci
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -77,7 +68,7 @@ KER_IMAGE }}:latest
         working-directory: ./terraform_aws
         run: |
           BUCKET_NAME=$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'siva-medicals-data-hyderabad')].Name | [0]" --output text)
-          [ "$BUCKET_NAME" == "None" ] || [ -z "$BUCKET_NAME" ] && BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2"
+          if [ "$BUCKET_NAME" == "None" ] || [ -z "$BUCKET_NAME" ]; then BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2"; fi
           echo "BUCKET=$BUCKET_NAME" >> $GITHUB_OUTPUT
           
           import_if_exists() {
@@ -114,64 +105,43 @@ KER_IMAGE }}:latest
             IGW_ID=$(aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[].InternetGatewayId | [0]" --output text)
             import_if_exists "aws_internet_gateway.gw" "$IGW_ID"
 
-              fi
-          SG_ID=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=SIVAMedicals-EC2-SG" --query "SecurityGroups[].GroupId | [0]" --output text)
+            SG_ID=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=SIVAMedicals-EC2-SG" --query "SecurityGroups[].GroupId | [0]" --output text)
             import_if_exists "aws_security_group.ec2_sg" "$SG_ID"
 
-              fi
-          RT_ID=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=SIVAMedicals-RouteTable" --query "RouteTables[].RouteTableId | [0]" --output text)
+            RT_ID=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=SIVAMedicals-RouteTable" --query "RouteTables[].RouteTableId | [0]" --output text)
             import_if_exists "aws_route_table.r" "$RT_ID"
 
-         ame: Get Private Key Output
-        id: get_key
-              fi
-          if [ "$SUBNET_ID" != "None" ] && [ "$RT_ID" != "None" ]; then
+            if [ "$SUBNET_ID" != "None" ] && [ "$RT_ID" != "None" ]; then
               if ! terraform state list | grep -q "aws_route_table_association.a"; then
+                echo "Importing aws_route_table_association.a..."
                 terraform import -var="manual_bucket_name=$BUCKET_NAME" aws_route_table_association.a "$SUBNET_ID/$RT_ID" || true
-         ame: Get Private Key Output
-        id: get_key
               fi
             fi
           fi
 
-         ame: Get Private Key Output
-  -     id: get_key
-        name: Terraform Apply
+      - name: Terraform Apply
         run: terraform apply -auto-approve -input=false -var="manual_bucket_name=${{ steps.discovery.outputs.BUCKET }}"
         working-directory: ./terraform_aws
 
       - name: Get Private Key Output
         id: get_key
-        ru
-n: |heckout
-        uses: actions/c@v4
+        run: |
           # Extract the private key to be used by the deployment job
-      - name: Sync S3 Assets
           echo "KEY<<EOF" >> $GITHUB_OUTPUT
           terraform output -raw private_key >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
         working-directory: ./terraform_aws
 
-heckout
-        uses: actions/c@v4
       - name: Ensure Instance is Running
-      - name: Sync S3 Assets
         run: |
           INSTANCE_ID=$(terraform output -raw instance_id)
-          aws ec2 s
-            export tUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            sudo kubectl rollout restart deployment/siva-medicaasrt-instances --instance-ids $INSTANCE_ID --region ${{ env.AWS_REGION }}
+          aws ec2 start-instances --instance-ids "$INSTANCE_ID" --region ${{ env.AWS_REGION }}
           aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID --region ${{ env.AWS_REGION }}
-        wo
-rking-directoryheckout
-        uses: actions/c: ./ter@v4raform_aws
+        working-directory: ./terraform_aws
 
-  siva--name:mSync S3 Assets
-        edicals-k8s-deployment:
-    name: "3: Siva Medicals Deployment with kubernets"
-    needs: terrafor
-            export mUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            sudo kubectl rollout restart deployment/siva-medica-sinfrastructure
+  siva-medicals-k8s-deployment:
+    name: "Step 3: Siva Medicals Deployment with Kubernetes"
+    needs: terraform-infrastructure
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -180,9 +150,7 @@ rking-directoryheckout
       - name: Sync S3 Assets
         run: |
           mkdir -p backend/uploads/
-          aws s3 sy
-            export nUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            sudo kubectl rollout restart deployment/siva-medicacs frontend/ s3://${{ needs.terraform-infrastructure.outputs.discovered_bucket }}/frontend/ --delete --region ${{ env.AWS_REGION }}
+          aws s3 sync frontend/ s3://${{ needs.terraform-infrastructure.outputs.discovered_bucket }}/frontend/ --delete --region ${{ env.AWS_REGION }}
           aws s3 sync backend/uploads/ s3://${{ needs.terraform-infrastructure.outputs.discovered_bucket }}/backend/uploads/ --delete --region ${{ env.AWS_REGION }}
 
       - name: Kubernetes Rollout
