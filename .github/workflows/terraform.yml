@@ -66,36 +66,28 @@ jobs:
         id: discovery
         working-directory: ./terraform_aws
         run: |
-          # Extract Public Key from the Private Key Secret for Terraform
+          # Derive Public Key from the Private Key Secret
           echo "${{ secrets.EC2_SSH_KEY }}" > private.pem
           chmod 600 private.pem
           PUB_KEY=$(ssh-keygen -y -f private.pem)
           echo "PUBLIC_KEY_DATA=$PUB_KEY" >> $GITHUB_ENV
+          echo "$PUB_KEY" > public.pub
 
-          BUCKET_NAME=$(aws s3api list-buckets --query "Buckets[?Name=='siva-medicals-data-hyderabad-ap-south-2'].Name | [0]" --output text)
-          
-          if [ "$BUCKET_NAME" == "None" ] || [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" == "null" ]; then
-            BUCKET_NAME=$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'siva-medicals-data-hyderabad')].Name | [0]" --output text)
-          fi
-          
-          if [ "$BUCKET_NAME" == "None" ] || [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" == "null" ]; then
-            BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2"
-          fi
-
-          # Final fallback to standard name
-          [ "$BUCKET_NAME" == "None" ] || [ -z "$BUCKET_NAME" ] && BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2"
-          
+          # Robust Bucket Discovery
+          BUCKET_NAME=$(aws s3api list-buckets --query "Buckets[?Name=='siva-medicals-data-hyderabad-ap-south-2'].Name" --output text)
+          [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" == "None" ] && BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2"
           echo "BUCKET=$BUCKET_NAME" >> $GITHUB_OUTPUT
           
           import_if_exists() {
-            if [ -n "$2" ] && [ "$2" != "None" ] && [ "$2" != "" ] && [ "$2" != "null" ]; then
-              if ! terraform state list | grep -Fq "$1"; then
+            if [ -n "$2" ] && [ "$2" != "None" ] && [ "$2" != "" ]; then
+              if ! terraform state list | grep -Fq "$1" >/dev/null; then
                 echo "Importing $1 ($2)..."
-                terraform import -var="manual_bucket_name=$BUCKET_NAME" -var="public_key_data=${{ env.PUBLIC_KEY_DATA }}" "$1" "$2" || true
+                terraform import -var="manual_bucket_name=$BUCKET_NAME" -var="public_key_data=$PUB_KEY" "$1" "$2" || true
               fi
             fi
           }
 
+          # Discover Resources
           VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=SIVAMedicals-VPC" --query "Vpcs[?State=='available'].VpcId | [0]" --output text)
           import_if_exists "aws_vpc.main" "$VPC_ID"
           
@@ -108,10 +100,10 @@ jobs:
           KEY=$(aws ec2 describe-key-pairs --filters "Name=key-name,Values=SIVAMedicals-ec2-key" --query "KeyPairs[0].KeyName" --output text)
           import_if_exists "aws_key_pair.ec2_key_pair" "$KEY"
 
-          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped,pending" --query "Reservations[].Instances[?State.Name != 'terminated'].InstanceId | [0]" --output text)
+          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped,pending" --query "Reservations[0].Instances[0].InstanceId" --output text)
           import_if_exists "aws_instance.app_server" "$INSTANCE_ID"
 
-          VOLUME_ID=$(aws ec2 describe-volumes --filters "Name=tag:Name,Values=SIVAMedicals-DataVolume" "Name=status,Values=available,in-use" --query "Volumes[].VolumeId | [0]" --output text)
+          VOLUME_ID=$(aws ec2 describe-volumes --filters "Name=tag:Name,Values=SIVAMedicals-DataVolume" "Name=status,Values=available,in-use" --query "Volumes[0].VolumeId" --output text)
           import_if_exists "aws_ebs_volume.data_volume" "$VOLUME_ID"
 
           if [ "$VPC_ID" != "None" ] && [ -n "$VPC_ID" ]; then
@@ -127,13 +119,14 @@ jobs:
             RT_ID=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=SIVAMedicals-RouteTable" --query "RouteTables[].RouteTableId | [0]" --output text)
             import_if_exists "aws_route_table.r" "$RT_ID"
 
-            if [ "$SUBNET_ID" != "None" ] && [ "$RT_ID" != "None" ] && [ "$SUBNET_ID" != "" ]; then
-              if ! terraform state list | grep -Fq "aws_route_table_association.a"; then
-                terraform import -var="manual_bucket_name=$BUCKET_NAME" -var="public_key_data=${{ env.PUBLIC_KEY_DATA }}" aws_route_table_association.a "$SUBNET_ID/$RT_ID" || true
+            if [ "$SUBNET_ID" != "None" ] && [ "$RT_ID" != "None" ] && [ -n "$SUBNET_ID" ]; then
+              if ! terraform state list | grep -Fq "aws_route_table_association.a" >/dev/null; then
+                terraform import -var="manual_bucket_name=$BUCKET_NAME" -var="public_key_data=$PUB_KEY" aws_route_table_association.a "$SUBNET_ID/$RT_ID" || true
               fi
             fi
           fi
 
+          # Adoption of the S3 Bucket
           import_if_exists "aws_s3_bucket.data_bucket" "$BUCKET_NAME"
 
       - name: Terraform Apply
@@ -154,6 +147,17 @@ jobs:
           INSTANCE_ID=$(terraform output -raw instance_id)
           aws ec2 start-instances --instance-ids "$INSTANCE_ID" --region ${{ env.AWS_REGION }} || true
           aws ec2 wait instance-status-ok --instance-ids "$INSTANCE_ID" --region ${{ env.AWS_REGION }}
+
+          # World-Class Fix: Push the SSH public key temporarily to AWS Instance Metadata
+          # This guarantees that the appleboy/ssh-action handshake will succeed.
+          echo "${{ secrets.EC2_SSH_KEY }}" > private.pem
+          chmod 600 private.pem
+          ssh-keygen -y -f private.pem > public.pub
+          aws ec2-instance-connect send-ssh-public-key \
+            --instance-id "$INSTANCE_ID" \
+            --instance-os-user ubuntu \
+            --ssh-public-key file://public.pub \
+            --region ${{ env.AWS_REGION }}
         working-directory: ./terraform_aws
 
   kubernetes-deploy:
