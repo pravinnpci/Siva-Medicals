@@ -168,7 +168,9 @@ jobs:
           
           echo "Ensuring instance $INSTANCE_ID is running..."
           aws ec2 start-instances --instance-ids "$INSTANCE_ID" --region ${{ env.AWS_REGION }}
-          aws ec2 wait instance-running --instance-ids "$INSTANCE_ID" --region ${{ env.AWS_REGION }}
+          # Wait for the OS to fully boot and services (like SSH) to start
+          echo "Waiting for instance to pass status checks (this may take a minute)..."
+          aws ec2 wait instance-status-ok --instance-ids "$INSTANCE_ID" --region ${{ env.AWS_REGION }}
           
           aws ec2-instance-connect send-ssh-public-key \
             --instance-id "$INSTANCE_ID" \
