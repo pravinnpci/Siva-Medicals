@@ -199,7 +199,13 @@ jobs:
               sudo ln -s /usr/local/bin/k3s /usr/local/bin/kubectl || true
             fi
 
-            # 4. Perform the Rollout
-            echo "Deploying updates to Kubernetes..."
+            # 4. Wait for Deployment and Perform Rollout
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            sudo kubectl rollout restart deployment/siva-medicals
+            echo "Checking for deployment siva-medicals..."
+            if sudo /usr/local/bin/kubectl get deployment siva-medicals >/dev/null 2>&1; then
+              echo "Deployment found. Performing rollout restart..."
+              sudo /usr/local/bin/kubectl rollout restart deployment/siva-medicals
+            else
+              echo "Deployment 'siva-medicals' not found yet. It might still be initializing from UserData."
+              echo "Initial pods will pull the latest image automatically upon creation."
+            fi

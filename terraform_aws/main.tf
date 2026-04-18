@@ -202,7 +202,7 @@ resource "aws_instance" "app_server" {
     mkdir -p /mnt/s3_uploads/backend/uploads
     chmod 777 /mnt/s3_uploads/backend/uploads
     sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf || true
-    echo "s3fs#siva-medicals-data-hyderabad-ap-south-2 /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=ap-south-2,url=https://s3.ap-south-2.amazonaws.com 0 0" >> /etc/fstab
+    echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com 0 0" >> /etc/fstab
     mount -a || true
 
     # Install K3s (Master + Slave on one node) - Disable Traefik to save RAM
@@ -214,7 +214,7 @@ resource "aws_instance" "app_server" {
     # Wait for K3s readiness
     export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
     for i in {1..30}; do
-       if command -v kubectl >/dev/null 2>&1 && kubectl get nodes | grep -q "Ready"; then break; fi
+       if [ -f /usr/local/bin/kubectl ] && /usr/local/bin/kubectl get nodes | grep -q "Ready"; then break; fi
        sleep 10
     done
 
