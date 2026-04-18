@@ -1,4 +1,4 @@
-name: "Siva Medicals Automated 3-Stage CI/CD"
+name: "Siva Medicals 3-Stage Sequential Pipeline"
 on:
   push:
     branches:
@@ -18,7 +18,7 @@ env:
 
 jobs:
   siva-medicals-ci:
-    name: "Step 1: Siva Medicals CI/CD"
+    name: "1: Siva Medicals CI/CD"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -38,7 +38,7 @@ jobs:
           tags: ${{ env.DOCKER_IMAGE }}:latest
 
   terraform-infrastructure:
-    name: "Step 2: Terraform Deployment"
+    name: "2: Terraform Deployment"
     needs: siva-medicals-ci
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -139,8 +139,8 @@ jobs:
           aws ec2 wait instance-status-ok --instance-ids "$INSTANCE_ID" --region ${{ env.AWS_REGION }}
         working-directory: ./terraform_aws
 
-  siva-medicals-k8s-deployment:
-    name: "Step 3: Siva Medicals Deployment with Kubernetes"
+  siva-medicals-deployment:
+    name: "3: Siva Medicals Deployment with kubernets"
     needs: terraform-infrastructure
     runs-on: ubuntu-latest
     steps:
