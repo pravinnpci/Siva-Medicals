@@ -178,9 +178,9 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             echo "Waiting for K3s installation to complete..."
-            for i in {1..30}; do
-              if [ -f /usr/local/bin/k3s ]; then break; fi
-              echo "K3s not found yet, retrying in 10s... ($i/30)"
+            for i in {1..60}; do
+              if command -v k3s >/dev/null 2>&1; then break; fi
+              echo "K3s binary not found yet, retrying in 10s... ($i/60)"
               sleep 10
             done
-            sudo /usr/local/bin/k3s kubectl rollout restart deployment/siva-medicals
+            sudo $(command -v k3s) kubectl rollout restart deployment/siva-medicals
