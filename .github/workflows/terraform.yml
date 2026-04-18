@@ -165,6 +165,11 @@ jobs:
           chmod 600 private.pem
           ssh-keygen -y -f private.pem > public.pub
           INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped,pending" --query "Reservations[].Instances[].InstanceId | [0]" --output text --region ${{ env.AWS_REGION }})
+          
+          echo "Ensuring instance $INSTANCE_ID is running..."
+          aws ec2 start-instances --instance-ids "$INSTANCE_ID" --region ${{ env.AWS_REGION }}
+          aws ec2 wait instance-running --instance-ids "$INSTANCE_ID" --region ${{ env.AWS_REGION }}
+          
           aws ec2-instance-connect send-ssh-public-key \
             --instance-id "$INSTANCE_ID" \
             --instance-os-user ubuntu \
