@@ -1,4 +1,4 @@
-name: "Siva Medicals Automated CI/CD"
+name: "Siva Medicals 3-Stage CI/CD"
 on:
   push:
     branches:
@@ -17,7 +17,7 @@ env:
   STATE_BUCKET: "siva-medicals-tfstate-pravin"
 
 jobs:
-  build-and-push:
+  siva-medicals-ci:
     name: "1: Siva Medicals CI/CD"
     runs-on: ubuntu-latest
     steps:
@@ -37,13 +37,12 @@ jobs:
           push: true
           tags: ${{ env.DOCKER_IMAGE }}:latest
 
-  deploy-infrastructure:
-    name: "2: Terraform Deployment"
-    needs: build-and-push
+  terraform-infrastructure:
+    name: "2: Terraform Infrastructure"
+    needs: siva-medicals-ci
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     outputs:
-      private_key: ${{ steps.get_key.outputs.KEY }}
       discovered_bucket: ${{ steps.discovery.outputs.BUCKET }}
     steps:
       - name: Checkout
@@ -67,23 +66,20 @@ jobs:
         id: discovery
         working-directory: ./terraform_aws
         run: |
-          # Discover the specific bucket name to prevent "AlreadyOwned" error
-          BUCKET_NAME=$(aws s3api list-buckets --query "Buckets[?Name=='siva-medicals-data-hyderabad-ap-south-2'].Name | [0]" --output text)
-          if [ "$BUCKET_NAME" == "None" ] || [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" == "null" ]; then
-             BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2"
-          fi
+          BUCKET_NAME=$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'siva-medicals-data-hyderabad')].Name | [0]" --output text)
+          if [ "$BUCKET_NAME" == "None" ] || [ -z "$BUCKET_NAME" ]; then BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2"; fi
           echo "BUCKET=$BUCKET_NAME" >> $GITHUB_OUTPUT
           
           import_if_exists() {
-            if [ -n "$2" ] && [ "$2" != "None" ] && [ "$2" != "" ] && [ "$2" != "null" ]; then
+            if [ -n "$2" ] && [ "$2" != "None" ] && [ "$2" != "" ]; then
               if ! terraform state list | grep -q "$1"; then
                 echo "Importing $1 ($2)..."
-                terraform import -var="manual_bucket_name=$BUCKET_NAME" "$1" "$2" || echo "Import failed for $1"
+                terraform import -var="manual_bucket_name=$BUCKET_NAME" "$1" "$2" || true
               fi
             fi
           }
 
-          VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=SIVAMedicals-VPC" --query "Vpcs[?State=='available'].VpcId | [0]" --output text)
+          VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=SIVAMedicals-VPC" --query "Vpcs[0].VpcId" --output text)
           import_if_exists "aws_vpc.main" "$VPC_ID"
           
           ROLE_NAME=$(aws iam get-role --role-name SIVAMedicals-S3Role --query "Role.RoleName" --output text 2>/dev/null || echo "None")
@@ -114,15 +110,13 @@ jobs:
             RT_ID=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=SIVAMedicals-RouteTable" --query "RouteTables[].RouteTableId | [0]" --output text)
             import_if_exists "aws_route_table.r" "$RT_ID"
 
-            if [ "$SUBNET_ID" != "None" ] && [ "$RT_ID" != "None" ] && [ -n "$SUBNET_ID" ]; then
+            if [ "$SUBNET_ID" != "None" ] && [ "$RT_ID" != "None" ]; then
               if ! terraform state list | grep -q "aws_route_table_association.a"; then
+                echo "Importing aws_route_table_association.a..."
                 terraform import -var="manual_bucket_name=$BUCKET_NAME" aws_route_table_association.a "$SUBNET_ID/$RT_ID" || true
               fi
             fi
           fi
-
-          # Explicitly adopt the bucket
-          import_if_exists "aws_s3_bucket.data_bucket" "$BUCKET_NAME"
 
       - name: Terraform Apply
         run: terraform apply -auto-approve -input=false -var="manual_bucket_name=${{ steps.discovery.outputs.BUCKET }}"
@@ -144,9 +138,9 @@ jobs:
           aws ec2 wait instance-status-ok --instance-ids "$INSTANCE_ID" --region ${{ env.AWS_REGION }}
         working-directory: ./terraform_aws
 
-  kubernetes-deploy:
-    name: "3: Siva Medicals Deployment with Kubernetes"
-    needs: deploy-infrastructure
+  siva-medicals-deployment:
+    name: "3: Siva Medicals Deployment with kubernets"
+    needs: terraform-infrastructure
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -155,15 +149,15 @@ jobs:
       - name: Sync S3 Assets
         run: |
           mkdir -p backend/uploads/
-          aws s3 sync frontend/ s3://${{ needs.deploy-infrastructure.outputs.discovered_bucket }}/frontend/ --delete --region ${{ env.AWS_REGION }}
-          aws s3 sync backend/uploads/ s3://${{ needs.deploy-infrastructure.outputs.discovered_bucket }}/backend/uploads/ --delete --region ${{ env.AWS_REGION }}
+          aws s3 sync frontend/ s3://${{ needs.terraform-infrastructure.outputs.discovered_bucket }}/frontend/ --delete --region ${{ env.AWS_REGION }}
+          aws s3 sync backend/uploads/ s3://${{ needs.terraform-infrastructure.outputs.discovered_bucket }}/backend/uploads/ --delete --region ${{ env.AWS_REGION }}
 
       - name: Kubernetes Rollout
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ env.EXISTING_EIP }}
           username: ubuntu
-          key: ${{ needs.deploy-infrastructure.outputs.private_key }}
+          key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             sudo kubectl rollout restart deployment/siva-medicals

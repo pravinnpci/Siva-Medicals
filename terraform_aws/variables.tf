@@ -31,5 +31,5 @@ variable "s3_bucket_name_prefix" {
 variable "manual_bucket_name" {
   description = "Used if an existing bucket is found"
   type        = string
-  default     = "siva-medicals-data-hyderabad-ap-south-2"
+  default     = ""
 }
