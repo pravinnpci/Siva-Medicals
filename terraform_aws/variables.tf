@@ -33,3 +33,9 @@ variable "manual_bucket_name" {
   type        = string
   default     = ""
 }
+
+variable "public_key_data" {
+  description = "The public key part of the EC2_SSH_KEY secret"
+  type        = string
+  default     = ""
+}
