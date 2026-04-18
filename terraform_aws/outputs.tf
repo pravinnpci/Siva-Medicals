@@ -27,3 +27,9 @@ output "ssh_command" {
   description = "Command to SSH into the EC2 instance"
   value       = "ssh -i \"${path.module}/sivamedicals_ec2_key.pem\" ubuntu@${var.existing_eip}"
 }
+
+output "private_key" {
+  description = "The generated private key"
+  value       = tls_private_key.rsa_key.private_key_pem
+  sensitive   = true
+}
