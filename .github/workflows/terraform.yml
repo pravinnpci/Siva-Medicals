@@ -1,4 +1,4 @@
-name: "Siva Medicals CI/CD Pipeline"
+name: "Siva Medicals Sequential CI/CD"
 on:
   push:
     branches:
