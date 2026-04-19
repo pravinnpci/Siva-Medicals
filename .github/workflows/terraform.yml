@@ -1,4 +1,4 @@
-name: "Siva Medicals Automated 3-Stage CI/CD"
+name: "Siva Medicals 4-Stage Sequential CI/CD"
 on:
   push:
     branches:
@@ -38,7 +38,7 @@ jobs:
           tags: ${{ env.DOCKER_IMAGE }}:latest
 
   terraform-infrastructure:
-    name: "Step 2: Terraform Deployment"
+    name: "2: Terraform Deployment"
     needs: siva-medicals-ci
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -178,7 +178,7 @@ jobs:
             --ssh-public-key file://public.pub \
             --region ${{ env.AWS_REGION }}
 
-      - name: Kubernetes Rollout
+      - name: Install & Verify K3s
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ env.EXISTING_EIP }}
@@ -186,41 +186,113 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           command_timeout: 20m
           script: |
-            # 1. Check if K3s is installed, wait if necessary
             if ! command -v k3s >/dev/null 2>&1; then
-              echo "K3s binary not found. Waiting up to 5 minutes for UserData to finish..."
-              for i in {1..30}; do
-                if [ -f /usr/local/bin/k3s ]; then break; fi
-                sleep 10
-              done
-            fi
-
-            # 2. Fallback: If still missing, install it manually
-            if ! command -v k3s >/dev/null 2>&1 && [ ! -f /usr/local/bin/k3s ]; then
-              echo "K3s still missing after wait. Installing now..."
+              echo "K3s not found. Installing..."
               curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --disable traefik" sh -
             fi
+            sudo ln -s /usr/local/bin/k3s /usr/local/bin/kubectl || true
+            /usr/local/bin/k3s kubectl get nodes
 
-            # 3. Ensure kubectl symlink exists
-            if ! command -v kubectl >/dev/null 2>&1; then
-              echo "Creating kubectl symlink..."
-              sudo ln -s /usr/local/bin/k3s /usr/local/bin/kubectl || true
-            fi
+  kubernetes-app-run:
+    name: "4: Kubernetes Run for Application Containers"
+    needs: [terraform-infrastructure, kubernetes-setup]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-            # 4. Wait for Deployment and Perform Rollout
+      - name: Sync S3 Assets
+        run: |
+          mkdir -p backend/uploads/
+          aws s3 sync frontend/ s3://${{ needs.terraform-infrastructure.outputs.discovered_bucket }}/frontend/ --delete --region ${{ env.AWS_REGION }}
+          aws s3 sync backend/uploads/ s3://${{ needs.terraform-infrastructure.outputs.discovered_bucket }}/backend/uploads/ --delete --region ${{ env.AWS_REGION }}
+
+      - name: Push SSH Key
+        run: |
+          echo "${{ secrets.EC2_SSH_KEY }}" > private.pem
+          chmod 600 private.pem
+          ssh-keygen -y -f private.pem > public.pub
+          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped,pending" --query "Reservations[].Instances[].InstanceId | [0]" --output text --region ${{ env.AWS_REGION }})
+          aws ec2-instance-connect send-ssh-public-key --instance-id "$INSTANCE_ID" --instance-os-user ubuntu --ssh-public-key file://public.pub --region ${{ env.AWS_REGION }}
+
+      - name: Apply Manifests and Run
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.EXISTING_EIP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            echo "Checking for deployment siva-medicals..."
-            if sudo /usr/local/bin/kubectl get deployment siva-medicals >/dev/null 2>&1; then
-              echo "Deployment found. Performing rollout restart..."
-              sudo /usr/local/bin/kubectl rollout restart deployment/siva-medicals
-              
-              echo "Waiting for rollout to complete..."
-              sudo /usr/local/bin/kubectl rollout status deployment/siva-medicals --timeout=2m
-
-              echo "Checking backend logs for database connection status..."
-              # Tail the last 100 lines and look for database-related keywords
-              sudo /usr/local/bin/kubectl logs deployment/siva-medicals --tail=100 | grep -iE "database|connection|postgres"
-            else
-              echo "Deployment 'siva-medicals' not found yet. It might still be initializing from UserData."
-              echo "Initial pods will pull the latest image automatically upon creation."
-            fi
+            
+            # Apply PV, PVC, Services and Deployments
+            cat <<K8S | sudo /usr/local/bin/kubectl apply -f -
+            apiVersion: v1
+            kind: PersistentVolume
+            metadata:
+              name: postgres-pv
+            spec:
+              capacity: { storage: 10Gi }
+              accessModes: [ReadWriteOnce]
+              hostPath: { path: "/mnt/postgres_data" }
+            ---
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: postgres-pvc
+            spec:
+              accessModes: [ReadWriteOnce]
+              resources: { requests: { storage: 10Gi } }
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata: { name: db }
+            spec:
+              selector: { app: postgres }
+              ports: [{ port: 5432 }]
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata: { name: postgres }
+            spec:
+              selector: { matchLabels: { app: postgres } }
+              template:
+                metadata: { labels: { app: postgres } }
+                spec:
+                  containers:
+                  - name: postgres
+                    image: postgres:14
+                    env: [{ name: POSTGRES_PASSWORD, value: "admin123" }]
+                    volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
+                  volumes: [{ name: data, persistentVolumeClaim: { claimName: postgres-pvc } }]
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata: { name: backend-service }
+            spec:
+              type: NodePort
+              selector: { app: backend }
+              ports: [{ port: 3001, targetPort: 3001, nodePort: 30001 }]
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata: { name: siva-medicals }
+            spec:
+              selector: { matchLabels: { app: backend } }
+              template:
+                metadata: { labels: { app: backend } }
+                spec:
+                  containers:
+                  - name: backend
+                    image: pravinnpci/siva-medicals:latest
+                    imagePullPolicy: Always
+                    ports: [{ containerPort: 3001 }]
+                    env:
+                    - { name: DB_HOST, value: "db" }
+                    - { name: DB_PASSWORD, value: "admin123" }
+                    volumeMounts: [{ name: uploads, mountPath: /app/uploads }]
+                  volumes: [{ name: uploads, hostPath: { path: /mnt/s3_uploads/backend/uploads } }]
+            K8S
+            
+            echo "Performing rollout to pull new image..."
+            sudo /usr/local/bin/kubectl rollout restart deployment/siva-medicals
+            sudo /usr/local/bin/kubectl rollout status deployment/siva-medicals --timeout=2m
