@@ -1,4 +1,4 @@
-name: "Siva Medicals Sequential Deployment"
+name: "Siva Medicals 6-Stage Sequential CI/CD"
 on:
   push:
     branches:
@@ -17,8 +17,50 @@ env:
   STATE_BUCKET: "siva-medicals-tfstate-pravin"
 
 jobs:
+  siva-medicals-test:
+    name: "1: Backend Build & Test"
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: siva_medicals
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - name: Install Backend Dependencies
+        run: cd backend && npm install
+      - name: Initialize Test Database
+        run: cd backend && node setup-db.js
+        env:
+          DB_HOST: localhost
+          DB_USER: postgres
+          DB_PASSWORD: password
+          DB_NAME: siva_medicals
+          DB_PORT: 5432
+      - name: Run Tests
+        run: cd backend && npm test
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/siva_medicals
+
   siva-medicals-ci:
-    name: "1: Build & Push Image"
+    name: "2: Build & Push Image"
+    needs: siva-medicals-test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -38,7 +80,7 @@ jobs:
           tags: ${{ env.DOCKER_IMAGE }}:latest
 
   terraform-infrastructure:
-    name: "2: AWS Infrastructure"
+    name: "3: AWS Infrastructure"
     needs: siva-medicals-ci
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -144,7 +186,7 @@ jobs:
         working-directory: ./terraform_aws
 
   s3-asset-sync:
-    name: "3: S3 Static Asset Sync"
+    name: "4: S3 Static Asset Sync"
     needs: terraform-infrastructure
     runs-on: ubuntu-latest
     steps:
@@ -158,7 +200,7 @@ jobs:
           aws s3 sync backend/uploads/ s3://${{ needs.terraform-infrastructure.outputs.discovered_bucket }}/backend/uploads/ --delete --region ${{ env.AWS_REGION }}
 
   kubernetes-setup:
-    name: "4: K3s Cluster Setup"
+    name: "5: K3s Cluster Setup"
     needs: s3-asset-sync
     runs-on: ubuntu-latest
     steps:
@@ -202,7 +244,7 @@ jobs:
             /usr/local/bin/k3s kubectl get nodes
 
   kubernetes-app-run:
-    name: "5: K8s App Deployment"
+    name: "6: K8s App Deployment"
     needs: [terraform-infrastructure, kubernetes-setup]
     runs-on: ubuntu-latest
     steps:
