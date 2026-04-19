@@ -8,6 +8,11 @@ output "s3_website_url" {
   value       = "http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/frontend/index.html"
 }
 
+output "backend_health_url" {
+  description = "URL to check backend health via Nginx"
+  value       = "http://${var.existing_eip}/api/health"
+}
+
 output "instance_id" {
   description = "ID of the EC2 instance"
   value       = aws_instance.app_server.id
