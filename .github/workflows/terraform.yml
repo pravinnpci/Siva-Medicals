@@ -1,4 +1,4 @@
-name: "Siva Medicals 4-Stage Sequential CI/CD"
+name: "Siva Medicals 5-Stage Sequential CI/CD"
 on:
   push:
     branches:
@@ -18,7 +18,7 @@ env:
 
 jobs:
   siva-medicals-ci:
-    name: "1: Siva Medicals CI/CD"
+    name: "1: Application CI (Docker)"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -38,7 +38,7 @@ jobs:
           tags: ${{ env.DOCKER_IMAGE }}:latest
 
   terraform-infrastructure:
-    name: "2: Terraform Deployment"
+    name: "2: Infrastructure (Terraform)"
     needs: siva-medicals-ci
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -194,18 +194,12 @@ jobs:
             /usr/local/bin/k3s kubectl get nodes
 
   kubernetes-app-run:
-    name: "4: Kubernetes Run for Application Containers"
-    needs: [terraform-infrastructure, kubernetes-setup]
+    name: "5: Application Runtime (Kubernetes)"
+    needs: [s3-asset-sync, kubernetes-setup]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Sync S3 Assets
-        run: |
-          mkdir -p backend/uploads/
-          aws s3 sync frontend/ s3://${{ needs.terraform-infrastructure.outputs.discovered_bucket }}/frontend/ --delete --region ${{ env.AWS_REGION }}
-          aws s3 sync backend/uploads/ s3://${{ needs.terraform-infrastructure.outputs.discovered_bucket }}/backend/uploads/ --delete --region ${{ env.AWS_REGION }}
 
       - name: Push SSH Key
         run: |
