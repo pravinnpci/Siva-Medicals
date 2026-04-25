@@ -340,3 +340,26 @@ jobs:
             echo "Performing rollout to pull new image..."
             sudo /usr/local/bin/kubectl rollout restart deployment/siva-medicals
             sudo /usr/local/bin/kubectl rollout status deployment/siva-medicals --timeout=2m
+
+  application-health-check:
+    name: "7: Final Health Check"
+    needs: kubernetes-app-run
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Backend API & Database
+        run: |
+          echo "Testing Backend API at http://${{ env.EXISTING_EIP }}/api/health"
+          # Wait for Nginx and K8s networking to fully stabilize
+          curl -s --retry 10 --retry-delay 5 --retry-connrefused "http://${{ env.EXISTING_EIP }}/api/health" > health_output.json
+          cat health_output.json
+          if grep -q "connected" health_output.json; then
+            echo "✅ Backend is UP and connected to Database"
+          else
+            echo "❌ Backend health check failed"
+            exit 1
+          fi
+      - name: Verify Frontend Homepage
+        run: |
+          echo "Testing Frontend availability..."
+          curl -s -f "http://${{ env.EXISTING_EIP }}/" | grep -q "Siva Medicals"
+          echo "✅ Frontend is accessible via Nginx"
