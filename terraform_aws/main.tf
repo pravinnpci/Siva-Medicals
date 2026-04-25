@@ -307,6 +307,8 @@ resource "aws_instance" "app_server" {
     cat > /etc/nginx/sites-available/default <<NX
     server {
         listen 80;
+        resolver 8.8.8.8 1.1.1.1;
+
         location / {
             proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/frontend/;
             proxy_set_header Host ${aws_s3_bucket.data_bucket.bucket_regional_domain_name};

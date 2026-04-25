@@ -270,9 +270,12 @@ jobs:
             BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2"
             
             echo "Cleaning up legacy Deployments to prevent resource conflicts..."
-            sudo /usr/local/bin/kubectl delete deployment postgres siva-medicals --ignore-not-found
-            # Wait for pods to terminate and release volumes/ports
-            sleep 15
+            sudo /usr/local/bin/kubectl delete deployment postgres siva-medicals --ignore-not-found || true
+            
+            echo "Ensuring volume permissions for Postgres..."
+            sudo mkdir -p /mnt/postgres_data
+            sudo chown -R 999:999 /mnt/postgres_data
+            sudo chmod -R 700 /mnt/postgres_data
 
             # Apply PV, PVC, Services and StatefulSets
             cat <<K8S | sudo /usr/local/bin/kubectl apply -f -
@@ -351,9 +354,12 @@ jobs:
             sudo tee /etc/nginx/sites-available/default <<NX
             server {
                 listen 80;
+                # Google DNS to resolve S3 endpoint
+                resolver 8.8.8.8 1.1.1.1;
+
                 location / {
-                    proxy_pass http://$BUCKET_NAME.s3-ap-south-2.amazonaws.com/frontend/;
-                    proxy_set_header Host $BUCKET_NAME.s3-ap-south-2.amazonaws.com;
+                    proxy_pass http://\$BUCKET_NAME.s3.ap-south-2.amazonaws.com/frontend/;
+                    proxy_set_header Host \$BUCKET_NAME.s3.ap-south-2.amazonaws.com;
                 }
                 location /uploads {
                     alias /mnt/s3_uploads/backend/uploads/;
@@ -365,9 +371,9 @@ jobs:
             NX
             sudo systemctl restart nginx
 
-            echo "Performing rollout to pull new image..."
-            sudo /usr/local/bin/kubectl rollout restart statefulset/siva-medicals
+            echo "Waiting for pods to stabilize..."
             sudo /usr/local/bin/kubectl rollout status statefulset/siva-medicals --timeout=2m
+            sudo /usr/local/bin/kubectl rollout status statefulset/postgres --timeout=2m
 
   application-verification:
     name: "7: AWS Web Application Verification"
@@ -419,14 +425,17 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            echo "Checking if Backend pod can reach Postgres pod (internal K8s DNS)..."
-            # Run a temporary pod to test DB port connectivity
-            if sudo /usr/local/bin/kubectl run net-test --image=busybox --restart=Never --rm -i -- /bin/sh -c "nc -zv db 5432" | grep -q "open"; then
-              echo "✅ Internal K8s network connectivity verified: backend -> db"
-            else
-              echo "❌ Internal connectivity failed: Backend cannot reach Postgres"
-              exit 1
-            fi
+            echo "Verifying Internal Service Connectivity..."
+            # Wait for postgres service to be fully up
+            for i in {1..10}; do
+              if sudo /usr/local/bin/kubectl run net-test --image=busybox --restart=Never --rm -i -- /bin/sh -c "nc -zv db 5432" 2>&1 | grep -q "open"; then
+                echo "✅ Internal K8s network connectivity verified: backend -> db"
+                exit 0
+              fi
+              echo "Waiting for database port... ($i/10)"
+              sleep 5
+            done
+            exit 1
 
       - name: External Application Health Check
         run: |
