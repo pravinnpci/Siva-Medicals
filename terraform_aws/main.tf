@@ -218,9 +218,9 @@ resource "aws_instance" "app_server" {
        sleep 10
     done
 
-    # Clean up legacy resources
-    /usr/local/bin/k3s kubectl delete deployment postgres siva-medicals --ignore-not-found || true
-    /usr/local/bin/k3s kubectl delete pvc postgres-pvc --ignore-not-found --grace-period=0 --force || true
+    # Clean up legacy deployments if they exist
+    /usr/local/bin/k3s kubectl delete deployment postgres siva-medicals --ignore-not-found
+    sleep 10
 
     # Deploy to Kubernetes
     cat <<K8S | /usr/local/bin/k3s kubectl apply -f -
@@ -229,7 +229,6 @@ resource "aws_instance" "app_server" {
     metadata:
       name: postgres-pv
     spec:
-      storageClassName: manual
       capacity:
         storage: 10Gi
       accessModes: [ReadWriteOnce]
@@ -241,7 +240,6 @@ resource "aws_instance" "app_server" {
     metadata:
       name: postgres-pvc
     spec:
-      storageClassName: manual
       accessModes: [ReadWriteOnce]
       resources:
         requests:
@@ -269,7 +267,9 @@ resource "aws_instance" "app_server" {
           containers:
           - name: postgres
             image: postgres:14
-            env: [{ name: POSTGRES_PASSWORD, value: "admin123" }]
+            env:
+            - { name: POSTGRES_PASSWORD, value: "admin123" }
+            - { name: PGDATA, value: "/var/lib/postgresql/data/pgdata" }
             volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
           volumes: [{ name: data, persistentVolumeClaim: { claimName: postgres-pvc } }]
     ---

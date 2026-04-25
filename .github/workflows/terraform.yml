@@ -247,6 +247,8 @@ jobs:
     name: "6: K8s App Deployment"
     needs: [terraform-infrastructure, kubernetes-setup]
     runs-on: ubuntu-latest
+    env:
+      BUCKET_NAME: ${{ needs.terraform-infrastructure.outputs.discovered_bucket }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -268,7 +270,7 @@ jobs:
           command_timeout: 25m
           script: |
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2"
+            BUCKET_NAME="${{ env.BUCKET_NAME }}"
             
             echo "Cleaning up legacy Deployments to prevent resource conflicts..."
             sudo /usr/local/bin/kubectl delete deployment postgres siva-medicals --ignore-not-found || true
@@ -325,7 +327,10 @@ jobs:
                   containers:
                   - name: postgres
                     image: postgres:14
-                    env: [{ name: POSTGRES_PASSWORD, value: "admin123" }]
+                    env:
+                    - { name: POSTGRES_PASSWORD, value: "admin123" }
+                    # Fix for lost+found folder error on new EBS volumes
+                    - { name: PGDATA, value: "/var/lib/postgresql/data/pgdata" }
                     volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
                   volumes: [{ name: data, persistentVolumeClaim: { claimName: postgres-pvc } }]
             ---
@@ -363,15 +368,18 @@ jobs:
             K8S
             
             # Ensure Nginx is updated to route to the NodePort
-            sudo tee /etc/nginx/sites-available/default <<NX
+            # Use S3 Website endpoint to prevent file listing issues
+            sudo tee /etc/nginx/sites-available/default <<'NX'
             server {
                 listen 80;
-                # Google DNS to resolve S3 endpoint
-                resolver 8.8.8.8 1.1.1.1;
+                resolver 8.8.8.8 1.1.1.1 valid=30s;
+                set $s3_backend 'siva-medicals-data-hyderabad-ap-south-2.s3-website-ap-south-2.amazonaws.com';
 
                 location / {
-                    proxy_pass http://$BUCKET_NAME.s3.ap-south-2.amazonaws.com/frontend/;
-                    proxy_set_header Host $BUCKET_NAME.s3.ap-south-2.amazonaws.com;
+                    proxy_pass http://$s3_backend/frontend/;
+                    proxy_set_header Host $s3_backend;
+                    proxy_intercept_errors on;
+                    error_page 404 = /index.html;
                 }
                 location /uploads {
                     alias /mnt/s3_uploads/backend/uploads/;
