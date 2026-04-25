@@ -272,14 +272,15 @@ jobs:
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             BUCKET_NAME="${{ env.BUCKET_NAME }}"
             
-            echo "Cleaning up legacy Deployments to prevent resource conflicts..."
+            echo "--- Forced Cleanup of Resources ---"
             sudo /usr/local/bin/kubectl delete deployment postgres siva-medicals --ignore-not-found || true
-            sudo /usr/local/bin/kubectl delete statefulset postgres siva-medicals --ignore-not-found || true
             
-            # Force delete PVC because StorageClassName is immutable
+            # StorageClassName is immutable; we must delete and recreate the PVC
             echo "Deleting old PVC to allow storage class update..."
-            sudo /usr/local/bin/kubectl delete pvc postgres-pvc --ignore-not-found --grace-period=0 --force
+            sudo /usr/local/bin/kubectl delete pvc postgres-pvc --ignore-not-found --wait=false || true
             sudo /usr/local/bin/kubectl patch pvc postgres-pvc -p '{"metadata":{"finalizers":null}}' --type=merge || true
+            # Ensure it is truly gone
+            sudo /usr/local/bin/kubectl delete pvc postgres-pvc --ignore-not-found --grace-period=0 --force || true
             
             echo "Ensuring volume permissions for Postgres..."
             sudo mkdir -p /mnt/postgres_data
@@ -391,12 +392,12 @@ jobs:
             NX
             sudo systemctl restart nginx
 
-            echo "Waiting for pods to stabilize..."
-            sudo /usr/local/bin/kubectl rollout status statefulset/siva-medicals --timeout=5m
-            sudo /usr/local/bin/kubectl rollout status statefulset/postgres --timeout=5m
+            echo "Waiting for containers to pull and stabilize (10m timeout)..."
+            sudo /usr/local/bin/kubectl rollout status statefulset/siva-medicals --timeout=10m
+            sudo /usr/local/bin/kubectl rollout status statefulset/postgres --timeout=10m
 
   application-verification:
-    name: "7: AWS Web Application Verification"
+    name: "7: Full Stack Connectivity Check"
     needs: kubernetes-app-run
     runs-on: ubuntu-latest
     steps:
@@ -416,63 +417,34 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            echo "--- Nginx Status ---"
-            sudo systemctl status nginx --no-pager || true
-            echo "--- Nginx Config Test ---"
-            sudo nginx -t || true
-            echo "--- K8s Nodes ---"
-            sudo /usr/local/bin/kubectl get nodes
-            echo "--- K8s Pods ---"
-            sudo /usr/local/bin/kubectl get pods -o wide
-            echo "--- K8s Services ---"
-            sudo /usr/local/bin/kubectl get svc
-            echo "--- K8s StatefulSets ---"
-            sudo /usr/local/bin/kubectl get sts
-            echo "--- Describe Backend StatefulSet ---"
-            sudo /usr/local/bin/kubectl describe statefulset siva-medicals
-            echo "--- Describe Backend Service ---"
-            sudo /usr/local/bin/kubectl describe service backend-service
-            echo "--- Describe Postgres StatefulSet ---"
-            sudo /usr/local/bin/kubectl describe statefulset postgres
-            echo "--- Describe Postgres Service ---"
-            sudo /usr/local/bin/kubectl describe service db
-
-      - name: Internal Service Connectivity (K8s pod-to-pod)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ env.EXISTING_EIP }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            echo "Verifying Internal Service Connectivity..."
-            # Wait for postgres service to be fully up
-            for i in {1..10}; do
-              if sudo /usr/local/bin/kubectl run net-test --image=busybox --restart=Never --rm -i -- /bin/sh -c "nc -zv db 5432" 2>&1 | grep -q "open"; then
-                echo "✅ Internal K8s network connectivity verified: backend -> db"
+            echo "--- Internal Connectivity Check: Backend -> Postgres ---"
+            # Attempt to reach DB from within the siva-medicals pod
+            for i in {1..5}; do
+              if sudo /usr/local/bin/kubectl exec statefulset/siva-medicals -- nc -zv db 5432 2>&1 | grep -q "open"; then
+                echo "✅ Internal K8s network verified: backend can reach db."
                 exit 0
               fi
-              echo "Waiting for database port... ($i/10)"
-              sleep 5
+              echo "Waiting for database service... ($i/5)"
+              sleep 10
             done
+            echo "❌ Internal Connectivity Failed!"
             exit 1
 
       - name: External Application Health Check
         run: |
-          echo "Verifying full application stack via http://${{ env.EXISTING_EIP }}/api/health"
+          echo "Verifying application status at http://${{ env.EXISTING_EIP }}"
           for i in {1..30}; do # Increased attempts to 5 minutes
-            HEALTH_RESPONSE=$(curl -s "http://${{ env.EXISTING_EIP }}/api/health")
-            HTTP_STATUS=$(echo "$HEALTH_RESPONSE" | grep -oP '(?<="message":")[^"]*' || echo "N/A")
-            DB_STATUS=$(echo "$HEALTH_RESPONSE" | grep -oP '(?<="database":{"status":")[^"]*' || echo "N/A")
-
-            if [ "$HTTP_STATUS" == "OK" ] && [ "$DB_STATUS" == "connected" ]; then
-              echo "✅ Backend API is UP and connected to Database."
-              curl -s -f "http://${{ env.EXISTING_EIP }}/" | grep -q "Siva Medicals"
-              echo "✅ Frontend is accessible via Nginx."
-              exit 0
+            # Check 1: Frontend serving content (not file listing)
+            if curl -s "http://${{ env.EXISTING_EIP }}/" | grep -q "Siva Medicals"; then
+              # Check 2: Backend healthy and connected to DB
+              HEALTH_RESPONSE=$(curl -s "http://${{ env.EXISTING_EIP }}/api/health" || echo '{"message":"offline"}')
+              if echo "$HEALTH_RESPONSE" | grep -q '"status":"connected"'; then
+                 echo "✅ Full Stack Verified: Frontend serving, Backend connected to DB."
+                 exit 0
+              fi
             fi
             echo "Attempt $i: Backend status: $HTTP_STATUS, DB status: $DB_STATUS. Waiting for full stack to stabilize..."
-            sleep 10
+            sleep 15
           done
           echo "❌ Full stack health check timed out after 5 minutes."
           echo "Last health check response:"
