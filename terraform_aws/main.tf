@@ -308,11 +308,11 @@ resource "aws_instance" "app_server" {
     server {
         listen 80;
         resolver 8.8.8.8 1.1.1.1 valid=30s;
-        set \$s3_backend '${aws_s3_bucket.data_bucket.id}.s3-website.ap-south-2.amazonaws.com';
+        set $s3_backend '${aws_s3_bucket.data_bucket.id}.s3-website.ap-south-2.amazonaws.com';
 
         location / {
-            proxy_pass http://\$s3_backend/frontend/;
-            proxy_set_header Host \$s3_backend;
+            proxy_pass http://$s3_backend/frontend/;
+            proxy_set_header Host $s3_backend;
         }
         location /uploads {
             alias /mnt/s3_uploads/backend/uploads/;

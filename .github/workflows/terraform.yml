@@ -269,14 +269,23 @@ jobs:
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2"
             
-            echo "Cleaning up legacy Deployments to prevent resource conflicts..."
-            sudo /usr/local/bin/kubectl delete deployment postgres siva-medicals --ignore-not-found || true
-
-            # Fix: Forcefully clear stuck PVCs if they are in Terminating state
+            echo "--- Forced Cleanup of Legacy Resources ---"
+            # Delete old deployments and wait to ensure ports/volumes are freed
+            sudo /usr/local/bin/kubectl delete deployment postgres siva-medicals --ignore-not-found --grace-period=0 --force
+            
+            # Forcefully clear stuck PVCs
             if sudo /usr/local/bin/kubectl get pvc postgres-pvc 2>&1 | grep -q "Terminating"; then
               echo "Patching stuck PVC to force deletion..."
               sudo /usr/local/bin/kubectl patch pvc postgres-pvc -p '{"metadata":{"finalizers":null}}' --type=merge || true
             fi
+            
+            # Ensure old data folder is clean if database failed to start previously
+            if [ -d /mnt/postgres_data/lost+found ]; then
+               echo "Ensuring volume permissions..."
+               sudo chown -R 999:999 /mnt/postgres_data
+               sudo chmod -R 700 /mnt/postgres_data
+            fi
+            sleep 10
             
             echo "Ensuring volume permissions for Postgres..."
             sudo mkdir -p /mnt/postgres_data
@@ -356,33 +365,40 @@ jobs:
                   volumes: [{ name: uploads, hostPath: { path: /mnt/s3_uploads/backend/uploads } }]
             K8S
             
-            # Ensure Nginx is updated to route to the NodePort
+            # Fix Nginx: Use S3 Website Endpoint to prevent file listing issue
+            # Removed backslash from BUCKET_NAME so shell expands it correctly
             sudo tee /etc/nginx/sites-available/default <<NX
             server {
                 listen 80;
-                # Google DNS to resolve S3 endpoint
-                resolver 8.8.8.8 1.1.1.1;
+                resolver 8.8.8.8 1.1.1.1 valid=30s;
+                
+                # Variable forces Nginx to resolve DNS at runtime
+                set \$s3_backend '$BUCKET_NAME.s3-website.ap-south-2.amazonaws.com';
 
                 location / {
-                    proxy_pass http://$BUCKET_NAME.s3.ap-south-2.amazonaws.com/frontend/;
-                    proxy_set_header Host $BUCKET_NAME.s3.ap-south-2.amazonaws.com;
+                    proxy_pass http://\$s3_backend/frontend/;
+                    proxy_set_header Host \$s3_backend;
+                    proxy_intercept_errors on;
+                    error_page 404 = /index.html;
                 }
                 location /uploads {
                     alias /mnt/s3_uploads/backend/uploads/;
                 }
                 location /api {
                     proxy_pass http://localhost:30001;
+                    proxy_set_header Host \$host;
+                    proxy_set_header X-Real-IP \$remote_addr;
                 }
             }
             NX
             sudo systemctl restart nginx
 
-            echo "Waiting for pods to stabilize..."
-            sudo /usr/local/bin/kubectl rollout status statefulset/siva-medicals --timeout=5m
-            sudo /usr/local/bin/kubectl rollout status statefulset/postgres --timeout=5m
+            echo "Waiting for containers to pull and stabilize..."
+            sudo /usr/local/bin/kubectl rollout status statefulset/siva-medicals --timeout=10m
+            sudo /usr/local/bin/kubectl rollout status statefulset/postgres --timeout=10m
 
   application-verification:
-    name: "7: AWS Web Application Verification"
+    name: "7: Full-Stack Connectivity & App Check"
     needs: kubernetes-app-run
     runs-on: ubuntu-latest
     steps:
