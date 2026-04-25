@@ -206,8 +206,7 @@ resource "aws_instance" "app_server" {
     mount -a || true
 
     # Install K3s (Master + Slave on one node) - Disable Traefik to save RAM
-    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --disable traefik --disable servicelb" sh -
-    
+    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --disable traefik
     # Create kubectl symlink immediately
     ln -s /usr/local/bin/k3s /usr/local/bin/kubectl || true
     
@@ -240,6 +239,7 @@ resource "aws_instance" "app_server" {
     metadata:
       name: postgres-pvc
     spec:
+      storageClassName: manual
       accessModes: [ReadWriteOnce]
       resources:
         requests:
@@ -267,13 +267,8 @@ resource "aws_instance" "app_server" {
           containers:
           - name: postgres
             image: postgres:14
-            env:
-            - { name: POSTGRES_PASSWORD, value: "admin123" }
-            - { name: PGDATA, value: "/var/lib/postgresql/data/pgdata" }
-            volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
-          volumes: [{ name: data, persistentVolumeClaim: { claimName: postgres-pvc } }]
-    ---
-    apiVersion: v1
+            env: [{ name: POSTGRES_PASSWORD, value: "admin123" }]
+            volu 1
     kind: Service
     metadata:
       name: backend-service
@@ -300,27 +295,20 @@ resource "aws_instance" "app_server" {
             ports: [{ containerPort: 3001 }]
             env:
             - { name: DB_HOST, value: "db" }
-            - { name: DB_PORT, value: "5432" }
-            - { name: DB_USER, value: "postgres" }
-            - { name: DB_NAME, value: "siva_medicals" }
             - { name: DB_PASSWORD, value: "admin123" }
             volumeMounts: [{ name: uploads, mountPath: /app/uploads }]
           volumes: [{ name: uploads, hostPath: { path: /mnt/s3_uploads/backend/uploads } }]
-    K8S
-
-    # Configure Nginx as Reverse Proxy
-    cat > /etc/nginx/sites-available/default <<NX
+    K8Se
     server {
         listen 80;
         resolver 8.8.8.8 1.1.1.1 valid=30s;
-        set $s3_backend '${aws_s3_bucket.data_bucket.id}.s3-website-ap-south-2.amazonaws.com';
+        set $s3_backend '${aws_s3_bucket.data_bucket.id}.s3-website.ap-south-2.amazonaws.com';
 
         location / {
             proxy_pass http://$s3_backend/frontend/;
             proxy_set_header Host $s3_backend;
             proxy_intercept_errors on;
             error_page 404 = /index.html;
-        }
         location /uploads {
             alias /mnt/s3_uploads/backend/uploads/;
         }

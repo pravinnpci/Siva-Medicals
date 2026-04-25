@@ -368,20 +368,17 @@ jobs:
                   volumes: [{ name: uploads, hostPath: { path: /mnt/s3_uploads/backend/uploads } }]
             K8S
             
-            # Ensure Nginx is updated to route to the NodePort
-            # Use S3 Website endpoint to prevent file listing issues
-            sudo tee /etc/nginx/sites-available/default <<NX
+            # Use S3 Website endpoint to prevent file listing issues. 
+            # Using 'NX' quotes ensures variables like $s3_backend are written literally.
+            sudo tee /etc/nginx/sites-available/default <<'NX'
             server {
                 listen 80;
                 resolver 8.8.8.8 1.1.1.1 valid=30s;
-                set \$s3_backend '$BUCKET_NAME.s3-website.ap-south-2.amazonaws.com';
+                set $s3_backend 'siva-medicals-data-hyderabad-ap-south-2.s3-website.ap-south-2.amazonaws.com';
 
                 location / {
                     proxy_pass http://$s3_backend/frontend/;
-                    # Crucial: Proxying to S3 Website requires the exact Host header
-                    proxy_set_header Host \$s3_backend;
-                    proxy_hide_header x-amz-id-2;
-                    proxy_hide_header x-amz-request-id;
+                    proxy_set_header Host $s3_backend;
                     proxy_intercept_errors on;
                     error_page 404 = /index.html;
                 }
