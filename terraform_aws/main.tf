@@ -218,6 +218,10 @@ resource "aws_instance" "app_server" {
        sleep 10
     done
 
+    # Clean up legacy deployments if they exist
+    /usr/local/bin/k3s kubectl delete deployment postgres siva-medicals --ignore-not-found
+    sleep 10
+
     # Deploy to Kubernetes
     cat <<K8S | /usr/local/bin/k3s kubectl apply -f -
     apiVersion: v1

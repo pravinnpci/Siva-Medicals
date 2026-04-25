@@ -269,6 +269,11 @@ jobs:
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2"
             
+            echo "Cleaning up legacy Deployments to prevent resource conflicts..."
+            sudo /usr/local/bin/kubectl delete deployment postgres siva-medicals --ignore-not-found
+            # Wait for pods to terminate and release volumes/ports
+            sleep 15
+
             # Apply PV, PVC, Services and StatefulSets
             cat <<K8S | sudo /usr/local/bin/kubectl apply -f -
             apiVersion: v1
