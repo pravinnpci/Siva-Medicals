@@ -269,36 +269,28 @@ jobs:
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2"
             
-            echo "--- Forced Cleanup of Legacy Resources ---"
-            # Delete old deployments and wait to ensure ports/volumes are freed
-            sudo /usr/local/bin/kubectl delete deployment postgres siva-medicals --ignore-not-found --grace-period=0 --force
-            
-            # Forcefully clear stuck PVCs
+            echo "Cleaning up legacy Deployments to prevent resource conflicts..."
+            sudo /usr/local/bin/kubectl delete deployment postgres siva-medicals --ignore-not-found || true
+
+            # Fix: Forcefully clear stuck PVCs if they are in Terminating state
             if sudo /usr/local/bin/kubectl get pvc postgres-pvc 2>&1 | grep -q "Terminating"; then
               echo "Patching stuck PVC to force deletion..."
               sudo /usr/local/bin/kubectl patch pvc postgres-pvc -p '{"metadata":{"finalizers":null}}' --type=merge || true
             fi
-            
-            # Ensure old data folder is clean if database failed to start previously
-            if [ -d /mnt/postgres_data/lost+found ]; then
-               echo "Ensuring volume permissions..."
-               sudo chown -R 999:999 /mnt/postgres_data
-               sudo chmod -R 700 /mnt/postgres_data
-            fi
-            sleep 10
             
             echo "Ensuring volume permissions for Postgres..."
             sudo mkdir -p /mnt/postgres_data
             sudo chown -R 999:999 /mnt/postgres_data
             sudo chmod -R 700 /mnt/postgres_data
 
-            # Apply PV, PVC, Services and StatefulSets
+            # Apply manifests with explicit storageClassName to ensure PV/PVC binding
             cat <<K8S | sudo /usr/local/bin/kubectl apply -f -
             apiVersion: v1
             kind: PersistentVolume
             metadata:
               name: postgres-pv
             spec:
+              storageClassName: manual
               capacity: { storage: 10Gi }
               accessModes: [ReadWriteOnce]
               hostPath: { path: "/mnt/postgres_data" }
@@ -308,6 +300,7 @@ jobs:
             metadata:
               name: postgres-pvc
             spec:
+              storageClassName: manual
               accessModes: [ReadWriteOnce]
               resources: { requests: { storage: 10Gi } }
             ---
@@ -365,14 +358,11 @@ jobs:
                   volumes: [{ name: uploads, hostPath: { path: /mnt/s3_uploads/backend/uploads } }]
             K8S
             
-            # Fix Nginx: Use S3 Website Endpoint to prevent file listing issue
-            # Removed backslash from BUCKET_NAME so shell expands it correctly
+            # Fix Nginx: Use Website Endpoint to prevent file listing issues
             sudo tee /etc/nginx/sites-available/default <<NX
             server {
                 listen 80;
                 resolver 8.8.8.8 1.1.1.1 valid=30s;
-                
-                # Variable forces Nginx to resolve DNS at runtime
                 set \$s3_backend '$BUCKET_NAME.s3-website.ap-south-2.amazonaws.com';
 
                 location / {
@@ -386,8 +376,6 @@ jobs:
                 }
                 location /api {
                     proxy_pass http://localhost:30001;
-                    proxy_set_header Host \$host;
-                    proxy_set_header X-Real-IP \$remote_addr;
                 }
             }
             NX
@@ -398,7 +386,7 @@ jobs:
             sudo /usr/local/bin/kubectl rollout status statefulset/postgres --timeout=10m
 
   application-verification:
-    name: "7: Full-Stack Connectivity & App Check"
+    name: "7: AWS Web Application Verification"
     needs: kubernetes-app-run
     runs-on: ubuntu-latest
     steps:

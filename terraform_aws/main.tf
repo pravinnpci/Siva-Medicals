@@ -240,6 +240,7 @@ resource "aws_instance" "app_server" {
     metadata:
       name: postgres-pvc
     spec:
+      storageClassName: manual
       accessModes: [ReadWriteOnce]
       resources:
         requests:
@@ -313,6 +314,8 @@ resource "aws_instance" "app_server" {
         location / {
             proxy_pass http://$s3_backend/frontend/;
             proxy_set_header Host $s3_backend;
+            proxy_intercept_errors on;
+            error_page 404 = /index.html;
         }
         location /uploads {
             alias /mnt/s3_uploads/backend/uploads/;
