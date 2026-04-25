@@ -127,7 +127,8 @@ document.addEventListener('DOMContentLoaded', function() {
       submitBtn.disabled = true;
 
       try {
-        const response = await fetch('http://18.60.246.115/api/contact', {
+        // Use relative path so Nginx handles proxying and solves CORS/Mixed Content issues
+        const response = await fetch('/api/contact', {
           method: 'POST',
           body: formData
         });

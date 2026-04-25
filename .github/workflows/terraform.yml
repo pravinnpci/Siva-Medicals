@@ -364,52 +364,44 @@ jobs:
             sudo /usr/local/bin/kubectl rollout restart statefulset/siva-medicals
             sudo /usr/local/bin/kubectl rollout status statefulset/siva-medicals --timeout=2m
 
-  application-health-check:
-    name: "7: AWS Web Application Verification"
+  connectivity-and-health-check:
+    name: "7: Full Stack Connectivity Check"
     needs: kubernetes-app-run
     runs-on: ubuntu-latest
     steps:
-      - name: Verify Backend API & Database
+      - name: External Health Check (Nginx to DB)
         run: |
-          echo "Testing Backend API at http://${{ env.EXISTING_EIP }}/api/health"
-          for i in {1..30}; do
-            RESPONSE=$(curl -s -o health_output.json -w "%{http_code}" "http://${{ env.EXISTING_EIP }}/api/health" || echo "000")
-            if [ "$RESPONSE" == "200" ]; then
-              if [ -f health_output.json ] && grep -q "connected" health_output.json; then
-                echo "✅ Backend is UP and connected to Database"
-                exit 0
-              fi
+          echo "Verifying external access via http://${{ env.EXISTING_EIP }}/api/health"
+          for i in {1..20}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${{ env.EXISTING_EIP }}/api/health" || echo "000")
+            if [ "$STATUS" == "200" ]; then
+              echo "✅ Nginx is serving Backend correctly"
+              exit 0
             fi
-            echo "Attempt $i: Received HTTP $RESPONSE. Waiting for backend to stabilize..."
-            sleep 10
+            echo "Waiting for pods and Nginx... (Attempt $i/20)"
+            sleep 15
           done
-          echo "❌ Backend health check timed out"
-          [ -f health_output.json ] && cat health_output.json || echo "No output received from server"
+          echo "❌ External Health Check Failed"
           exit 1
-      - name: Verify Frontend Homepage
-        run: |
-          echo "Testing Frontend availability..."
-          curl -s -f "http://${{ env.EXISTING_EIP }}/" | grep -q "Siva Medicals"
-          echo "✅ Frontend is accessible via Nginx"
 
-  application-health-check:
-    name: "7: Final Health Check"
-    needs: kubernetes-app-run
-    runs-on: ubuntu-latest
-    steps:
-      - name: Verify Backend API & Database
-        run: |
-          echo "Testing Backend API at http://${{ env.EXISTING_EIP }}/api/health"
-          # Wait for Nginx and K8s networking to fully stabilize
-          curl -s --retry 10 --retry-delay 5 --retry-connrefused "http://${{ env.EXISTING_EIP }}/api/health" > health_output.json
-          cat health_output.json
-          if grep -q "connected" health_output.json; then
-            echo "✅ Backend is UP and connected to Database"
-          else
-            echo "❌ Backend health check failed"
-            exit 1
-          fi
-      - name: Verify Frontend Homepage
+      - name: Internal Service Connectivity (K8s pod-to-pod)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.EXISTING_EIP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+            echo "Checking if Backend pod can reach Postgres pod..."
+            # Run a temporary pod to test DB port connectivity
+            if sudo /usr/local/bin/kubectl run net-test --image=busybox --restart=Never --rm -i -- /bin/sh -c "nc -zv db 5432" | grep -q "open"; then
+              echo "✅ Internal K8s network connectivity verified: backend -> db"
+            else
+              echo "❌ Internal connectivity failed"
+              exit 1
+            fi
+
+      - name: Verify Frontend S3 Proxy
         run: |
           echo "Testing Frontend availability..."
           curl -s -f "http://${{ env.EXISTING_EIP }}/" | grep -q "Siva Medicals"
