@@ -206,7 +206,7 @@ resource "aws_instance" "app_server" {
     mount -a || true
 
     # Install K3s (Master + Slave on one node) - Disable Traefik to save RAM
-    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --disable traefik" sh -
+    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --disable traefik --disable servicelb" sh -
     
     # Create kubectl symlink immediately
     ln -s /usr/local/bin/k3s /usr/local/bin/kubectl || true

@@ -370,15 +370,18 @@ jobs:
             
             # Ensure Nginx is updated to route to the NodePort
             # Use S3 Website endpoint to prevent file listing issues
-            sudo tee /etc/nginx/sites-available/default <<'NX'
+            sudo tee /etc/nginx/sites-available/default <<NX
             server {
                 listen 80;
                 resolver 8.8.8.8 1.1.1.1 valid=30s;
-                set $s3_backend 'siva-medicals-data-hyderabad-ap-south-2.s3-website-ap-south-2.amazonaws.com';
+                set \$s3_backend '$BUCKET_NAME.s3-website.ap-south-2.amazonaws.com';
 
                 location / {
                     proxy_pass http://$s3_backend/frontend/;
-                    proxy_set_header Host $s3_backend;
+                    # Crucial: Proxying to S3 Website requires the exact Host header
+                    proxy_set_header Host \$s3_backend;
+                    proxy_hide_header x-amz-id-2;
+                    proxy_hide_header x-amz-request-id;
                     proxy_intercept_errors on;
                     error_page 404 = /index.html;
                 }
@@ -393,8 +396,13 @@ jobs:
             sudo systemctl restart nginx
 
             echo "Waiting for containers to pull and stabilize (10m timeout)..."
-            sudo /usr/local/bin/kubectl rollout status statefulset/siva-medicals --timeout=10m
-            sudo /usr/local/bin/kubectl rollout status statefulset/postgres --timeout=10m
+            # Monitor the rollout but print pod status if it hangs
+            if ! sudo /usr/local/bin/kubectl rollout status statefulset/postgres --timeout=5m; then
+                echo "Postgres failed to start. Diagnostics:"
+                sudo /usr/local/bin/kubectl describe pod postgres-0
+                exit 1
+            fi
+            sudo /usr/local/bin/kubectl rollout status statefulset/siva-medicals --timeout=5m
 
   application-verification:
     name: "7: Full Stack Connectivity Check"
