@@ -250,10 +250,12 @@ resource "aws_instance" "app_server" {
       ports: [{ port: 5432 }]
     ---
     apiVersion: apps/v1
-    kind: Deployment
+    kind: StatefulSet
     metadata:
       name: postgres
     spec:
+      serviceName: "db"
+      replicas: 1
       selector: { matchLabels: { app: postgres } }
       template:
         metadata: { labels: { app: postgres } }
@@ -275,10 +277,12 @@ resource "aws_instance" "app_server" {
       ports: [{ port: 3001, targetPort: 3001, nodePort: 30001 }]
     ---
     apiVersion: apps/v1
-    kind: Deployment
+    kind: StatefulSet
     metadata:
       name: siva-medicals
     spec:
+      serviceName: "backend-service"
+      replicas: 1
       selector: { matchLabels: { app: backend } }
       template:
         metadata: { labels: { app: backend } }

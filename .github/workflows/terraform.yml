@@ -296,9 +296,11 @@ jobs:
               ports: [{ port: 5432 }]
             ---
             apiVersion: apps/v1
-            kind: Deployment
+            kind: StatefulSet
             metadata: { name: postgres }
             spec:
+              serviceName: "db"
+              replicas: 1
               selector: { matchLabels: { app: postgres } }
               template:
                 metadata: { labels: { app: postgres } }
@@ -319,9 +321,11 @@ jobs:
               ports: [{ port: 3001, targetPort: 3001, nodePort: 30001 }]
             ---
             apiVersion: apps/v1
-            kind: Deployment
+            kind: StatefulSet
             metadata: { name: siva-medicals }
             spec:
+              serviceName: "backend-service"
+              replicas: 1
               selector: { matchLabels: { app: backend } }
               template:
                 metadata: { labels: { app: backend } }
@@ -357,22 +361,22 @@ jobs:
             sudo systemctl restart nginx
 
             echo "Performing rollout to pull new image..."
-            sudo /usr/local/bin/kubectl rollout restart deployment/siva-medicals
-            sudo /usr/local/bin/kubectl rollout status deployment/siva-medicals --timeout=2m
+            sudo /usr/local/bin/kubectl rollout restart statefulset/siva-medicals
+            sudo /usr/local/bin/kubectl rollout status statefulset/siva-medicals --timeout=2m
 
   application-health-check:
-    name: "7: Application Health Check"
+    name: "7: AWS Web Application Verification"
     needs: kubernetes-app-run
     runs-on: ubuntu-latest
     steps:
       - name: Verify Backend API & Database
         run: |
           echo "Testing Backend API at http://${{ env.EXISTING_EIP }}/api/health"
-          # Patient loop to wait for 200 OK (handles 404/502 during container startup)
-          for i in {1..20}; do
-            RESPONSE=$(curl -s -w "%{http_code}" "http://${{ env.EXISTING_EIP }}/api/health" -o health_output.json || echo "000")
+          # Wait for Nginx and K8s networking to fully stabilize
+          for i in {1..30}; do
+            RESPONSE=$(curl -s -o health_output.json -w "%{http_code}" "http://${{ env.EXISTING_EIP }}/api/health" || echo "000")
             if [ "$RESPONSE" == "200" ]; then
-              if grep -q "connected" health_output.json; then
+              if [ -f health_output.json ] && grep -q "connected" health_output.json; then
                 echo "✅ Backend is UP and connected to Database"
                 exit 0
               fi
@@ -381,7 +385,7 @@ jobs:
             sleep 10
           done
           echo "❌ Backend health check timed out"
-          cat health_output.json
+          [ -f health_output.json ] && cat health_output.json || echo "No output received from server"
           exit 1
       - name: Verify Frontend Homepage
         run: |
