@@ -310,8 +310,8 @@ resource "aws_instance" "app_server" {
         resolver 8.8.8.8 1.1.1.1;
 
         location / {
-            proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/frontend/;
-            proxy_set_header Host ${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
+            proxy_pass http://${aws_s3_bucket.data_bucket.id}.s3.ap-south-2.amazonaws.com/frontend/;
+            proxy_set_header Host ${aws_s3_bucket.data_bucket.id}.s3.ap-south-2.amazonaws.com;
         }
         location /uploads {
             alias /mnt/s3_uploads/backend/uploads/;

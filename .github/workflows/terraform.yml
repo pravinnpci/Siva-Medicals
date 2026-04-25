@@ -271,6 +271,12 @@ jobs:
             
             echo "Cleaning up legacy Deployments to prevent resource conflicts..."
             sudo /usr/local/bin/kubectl delete deployment postgres siva-medicals --ignore-not-found || true
+
+            # Fix: Forcefully clear stuck PVCs if they are in Terminating state
+            if sudo /usr/local/bin/kubectl get pvc postgres-pvc 2>&1 | grep -q "Terminating"; then
+              echo "Patching stuck PVC to force deletion..."
+              sudo /usr/local/bin/kubectl patch pvc postgres-pvc -p '{"metadata":{"finalizers":null}}' --type=merge || true
+            fi
             
             echo "Ensuring volume permissions for Postgres..."
             sudo mkdir -p /mnt/postgres_data
@@ -358,8 +364,8 @@ jobs:
                 resolver 8.8.8.8 1.1.1.1;
 
                 location / {
-                    proxy_pass http://\$BUCKET_NAME.s3.ap-south-2.amazonaws.com/frontend/;
-                    proxy_set_header Host \$BUCKET_NAME.s3.ap-south-2.amazonaws.com;
+                    proxy_pass http://$BUCKET_NAME.s3.ap-south-2.amazonaws.com/frontend/;
+                    proxy_set_header Host $BUCKET_NAME.s3.ap-south-2.amazonaws.com;
                 }
                 location /uploads {
                     alias /mnt/s3_uploads/backend/uploads/;
@@ -372,8 +378,8 @@ jobs:
             sudo systemctl restart nginx
 
             echo "Waiting for pods to stabilize..."
-            sudo /usr/local/bin/kubectl rollout status statefulset/siva-medicals --timeout=2m
-            sudo /usr/local/bin/kubectl rollout status statefulset/postgres --timeout=2m
+            sudo /usr/local/bin/kubectl rollout status statefulset/siva-medicals --timeout=5m
+            sudo /usr/local/bin/kubectl rollout status statefulset/postgres --timeout=5m
 
   application-verification:
     name: "7: AWS Web Application Verification"
