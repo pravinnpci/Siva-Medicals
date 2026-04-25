@@ -364,25 +364,47 @@ jobs:
             sudo /usr/local/bin/kubectl rollout restart statefulset/siva-medicals
             sudo /usr/local/bin/kubectl rollout status statefulset/siva-medicals --timeout=2m
 
-  connectivity-and-health-check:
-    name: "7: Full Stack Connectivity Check"
+  application-verification:
+    name: "7: AWS Web Application Verification"
     needs: kubernetes-app-run
     runs-on: ubuntu-latest
     steps:
-      - name: External Health Check (Nginx to DB)
+      - name: Push SSH Key for Verification
         run: |
-          echo "Verifying external access via http://${{ env.EXISTING_EIP }}/api/health"
-          for i in {1..20}; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${{ env.EXISTING_EIP }}/api/health" || echo "000")
-            if [ "$STATUS" == "200" ]; then
-              echo "✅ Nginx is serving Backend correctly"
-              exit 0
-            fi
-            echo "Waiting for pods and Nginx... (Attempt $i/20)"
-            sleep 15
-          done
-          echo "❌ External Health Check Failed"
-          exit 1
+          echo "${{ secrets.EC2_SSH_KEY }}" > private.pem
+          chmod 600 private.pem
+          ssh-keygen -y -f private.pem > public.pub
+          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=SIVAMedicals-AppServer" "Name=instance-state-name,Values=running,stopped,pending" --query "Reservations[].Instances[].InstanceId | [0]" --output text --region ${{ env.AWS_REGION }})
+          aws ec2-instance-connect send-ssh-public-key --instance-id "$INSTANCE_ID" --instance-os-user ubuntu --ssh-public-key file://public.pub --region ${{ env.AWS_REGION }}
+
+      - name: Internal K8s & Nginx Status Check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.EXISTING_EIP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+            echo "--- Nginx Status ---"
+            sudo systemctl status nginx --no-pager || true
+            echo "--- Nginx Config Test ---"
+            sudo nginx -t || true
+            echo "--- K8s Nodes ---"
+            sudo /usr/local/bin/kubectl get nodes
+            echo "--- K8s Pods ---"
+            sudo /usr/local/bin/kubectl get pods -o wide
+            echo "--- K8s Services ---"
+            sudo /usr/local/bin/kubectl get svc
+            echo "--- K8s StatefulSets ---"
+            sudo /usr/local/bin/kubectl get sts
+            echo "--- Describe Backend StatefulSet ---"
+            sudo /usr/local/bin/kubectl describe statefulset siva-medicals
+            echo "--- Describe Backend Service ---"
+            sudo /usr/local/bin/kubectl describe service backend-service
+            echo "--- Describe Postgres StatefulSet ---"
+            sudo /usr/local/bin/kubectl describe statefulset postgres
+            echo "--- Describe Postgres Service ---"
+            sudo /usr/local/bin/kubectl describe service db
 
       - name: Internal Service Connectivity (K8s pod-to-pod)
         uses: appleboy/ssh-action@v1.0.3
@@ -392,17 +414,33 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-            echo "Checking if Backend pod can reach Postgres pod..."
+            echo "Checking if Backend pod can reach Postgres pod (internal K8s DNS)..."
             # Run a temporary pod to test DB port connectivity
             if sudo /usr/local/bin/kubectl run net-test --image=busybox --restart=Never --rm -i -- /bin/sh -c "nc -zv db 5432" | grep -q "open"; then
               echo "✅ Internal K8s network connectivity verified: backend -> db"
             else
-              echo "❌ Internal connectivity failed"
+              echo "❌ Internal connectivity failed: Backend cannot reach Postgres"
               exit 1
             fi
 
-      - name: Verify Frontend S3 Proxy
+      - name: External Application Health Check
         run: |
-          echo "Testing Frontend availability..."
-          curl -s -f "http://${{ env.EXISTING_EIP }}/" | grep -q "Siva Medicals"
-          echo "✅ Frontend is accessible via Nginx"
+          echo "Verifying full application stack via http://${{ env.EXISTING_EIP }}/api/health"
+          for i in {1..30}; do # Increased attempts to 5 minutes
+            HEALTH_RESPONSE=$(curl -s "http://${{ env.EXISTING_EIP }}/api/health")
+            HTTP_STATUS=$(echo "$HEALTH_RESPONSE" | grep -oP '(?<="message":")[^"]*' || echo "N/A")
+            DB_STATUS=$(echo "$HEALTH_RESPONSE" | grep -oP '(?<="database":{"status":")[^"]*' || echo "N/A")
+
+            if [ "$HTTP_STATUS" == "OK" ] && [ "$DB_STATUS" == "connected" ]; then
+              echo "✅ Backend API is UP and connected to Database."
+              curl -s -f "http://${{ env.EXISTING_EIP }}/" | grep -q "Siva Medicals"
+              echo "✅ Frontend is accessible via Nginx."
+              exit 0
+            fi
+            echo "Attempt $i: Backend status: $HTTP_STATUS, DB status: $DB_STATUS. Waiting for full stack to stabilize..."
+            sleep 10
+          done
+          echo "❌ Full stack health check timed out after 5 minutes."
+          echo "Last health check response:"
+          curl -s "http://${{ env.EXISTING_EIP }}/api/health" || echo "Could not retrieve health endpoint."
+          exit 1
