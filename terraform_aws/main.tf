@@ -218,9 +218,9 @@ resource "aws_instance" "app_server" {
        sleep 10
     done
 
-    # Clean up legacy deployments if they exist
-    /usr/local/bin/k3s kubectl delete deployment postgres siva-medicals --ignore-not-found
-    sleep 10
+    # Clean up legacy resources
+    /usr/local/bin/k3s kubectl delete deployment postgres siva-medicals --ignore-not-found || true
+    /usr/local/bin/k3s kubectl delete pvc postgres-pvc --ignore-not-found --grace-period=0 --force || true
 
     # Deploy to Kubernetes
     cat <<K8S | /usr/local/bin/k3s kubectl apply -f -
@@ -229,6 +229,7 @@ resource "aws_instance" "app_server" {
     metadata:
       name: postgres-pv
     spec:
+      storageClassName: manual
       capacity:
         storage: 10Gi
       accessModes: [ReadWriteOnce]
@@ -309,7 +310,7 @@ resource "aws_instance" "app_server" {
     server {
         listen 80;
         resolver 8.8.8.8 1.1.1.1 valid=30s;
-        set $s3_backend '${aws_s3_bucket.data_bucket.id}.s3-website.ap-south-2.amazonaws.com';
+        set $s3_backend '${aws_s3_bucket.data_bucket.id}.s3-website-ap-south-2.amazonaws.com';
 
         location / {
             proxy_pass http://$s3_backend/frontend/;

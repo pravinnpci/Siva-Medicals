@@ -265,25 +265,26 @@ jobs:
           host: ${{ env.EXISTING_EIP }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 25m
           script: |
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             BUCKET_NAME="siva-medicals-data-hyderabad-ap-south-2"
             
             echo "Cleaning up legacy Deployments to prevent resource conflicts..."
             sudo /usr/local/bin/kubectl delete deployment postgres siva-medicals --ignore-not-found || true
-
-            # Fix: Forcefully clear stuck PVCs if they are in Terminating state
-            if sudo /usr/local/bin/kubectl get pvc postgres-pvc 2>&1 | grep -q "Terminating"; then
-              echo "Patching stuck PVC to force deletion..."
-              sudo /usr/local/bin/kubectl patch pvc postgres-pvc -p '{"metadata":{"finalizers":null}}' --type=merge || true
-            fi
+            sudo /usr/local/bin/kubectl delete statefulset postgres siva-medicals --ignore-not-found || true
+            
+            # Force delete PVC because StorageClassName is immutable
+            echo "Deleting old PVC to allow storage class update..."
+            sudo /usr/local/bin/kubectl delete pvc postgres-pvc --ignore-not-found --grace-period=0 --force
+            sudo /usr/local/bin/kubectl patch pvc postgres-pvc -p '{"metadata":{"finalizers":null}}' --type=merge || true
             
             echo "Ensuring volume permissions for Postgres..."
             sudo mkdir -p /mnt/postgres_data
             sudo chown -R 999:999 /mnt/postgres_data
             sudo chmod -R 700 /mnt/postgres_data
 
-            # Apply manifests with explicit storageClassName to ensure PV/PVC binding
+            # Apply PV, PVC, Services and StatefulSets
             cat <<K8S | sudo /usr/local/bin/kubectl apply -f -
             apiVersion: v1
             kind: PersistentVolume
@@ -358,18 +359,16 @@ jobs:
                   volumes: [{ name: uploads, hostPath: { path: /mnt/s3_uploads/backend/uploads } }]
             K8S
             
-            # Fix Nginx: Use Website Endpoint to prevent file listing issues
+            # Ensure Nginx is updated to route to the NodePort
             sudo tee /etc/nginx/sites-available/default <<NX
             server {
                 listen 80;
-                resolver 8.8.8.8 1.1.1.1 valid=30s;
-                set \$s3_backend '$BUCKET_NAME.s3-website.ap-south-2.amazonaws.com';
+                # Google DNS to resolve S3 endpoint
+                resolver 8.8.8.8 1.1.1.1;
 
                 location / {
-                    proxy_pass http://\$s3_backend/frontend/;
-                    proxy_set_header Host \$s3_backend;
-                    proxy_intercept_errors on;
-                    error_page 404 = /index.html;
+                    proxy_pass http://$BUCKET_NAME.s3.ap-south-2.amazonaws.com/frontend/;
+                    proxy_set_header Host $BUCKET_NAME.s3.ap-south-2.amazonaws.com;
                 }
                 location /uploads {
                     alias /mnt/s3_uploads/backend/uploads/;
@@ -381,9 +380,9 @@ jobs:
             NX
             sudo systemctl restart nginx
 
-            echo "Waiting for containers to pull and stabilize..."
-            sudo /usr/local/bin/kubectl rollout status statefulset/siva-medicals --timeout=10m
-            sudo /usr/local/bin/kubectl rollout status statefulset/postgres --timeout=10m
+            echo "Waiting for pods to stabilize..."
+            sudo /usr/local/bin/kubectl rollout status statefulset/siva-medicals --timeout=5m
+            sudo /usr/local/bin/kubectl rollout status statefulset/postgres --timeout=5m
 
   application-verification:
     name: "7: AWS Web Application Verification"
