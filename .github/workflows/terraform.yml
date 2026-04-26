@@ -500,7 +500,6 @@ jobs:
                     fi
                  fi
               fi
-            fi
             echo "Attempt $i: Waiting for stack to stabilize. Frontend: $FRONTEND_STATUS, Health: $HEALTH_RESPONSE"
             sleep 15
           done
