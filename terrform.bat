@@ -467,11 +467,15 @@ echo         location /api {
 echo             proxy_pass http://localhost:30001;
 echo             proxy_set_header Host $host;
 echo             proxy_set_header X-Real-IP $remote_addr;
+echo             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+echo             proxy_set_header X-Forwarded-Proto $scheme;
 echo         }
 echo         location /admin {
 echo             proxy_pass http://localhost:30001;
 echo             proxy_set_header Host $host;
 echo             proxy_set_header X-Real-IP $remote_addr;
+echo             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+echo             proxy_set_header X-Forwarded-Proto $scheme;
 echo         }
 echo     }
 echo     NX
