@@ -195,13 +195,15 @@ resource "aws_instance" "app_server" {
       mkdir -p /mnt/postgres_data
       mount $DEVICE /mnt/postgres_data
       echo "$DEVICE /mnt/postgres_data ext4 defaults,nofail 0 2" >> /etc/fstab
+      mkdir -p /mnt/postgres_data/pgdata
       chown -R 999:999 /mnt/postgres_data
+      chmod 700 /mnt/postgres_data
     fi
 
     # Setup S3 mount
     mkdir -p /mnt/s3_uploads/backend/uploads
     chmod 777 /mnt/s3_uploads/backend/uploads
-    sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf || true
+    sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf > /dev/null 2>&1 || true
     echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com 0 0" >> /etc/fstab
     mount -a || true
 

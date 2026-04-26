@@ -179,11 +179,11 @@ app.use(express.urlencoded({ extended: true }));
 
 // Session configuration
 app.use(session({
-  store: pool ? new PgSession({
+  store: new PgSession({
     pool: pool,
     tableName: 'session',
     createTableIfMissing: true
-  }) : undefined,
+  }),
   secret: process.env.SESSION_SECRET || 'siva-medicals-secret-key',
   resave: false,
   saveUninitialized: false,

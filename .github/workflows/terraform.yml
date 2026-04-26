@@ -279,6 +279,10 @@ jobs:
             sudo /usr/local/bin/kubectl delete pvc postgres-pvc --ignore-not-found || true
             sudo /usr/local/bin/kubectl delete pv postgres-pv --ignore-not-found || true
             
+            # Force Postgres to re-initialize by clearing the host directory
+            echo "Wiping old database files to force re-initialization..."
+            sudo rm -rf /mnt/postgres_data/*
+            
             echo "Ensuring volume permissions for Postgres..."
             sudo mkdir -p /mnt/postgres_data
             sudo chown -R 999:999 /mnt/postgres_data

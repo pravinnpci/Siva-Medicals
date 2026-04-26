@@ -1,6 +1,10 @@
-.terraform/
-*.tfstate
-*.tfstate.backup
-tfplan.out
-*.pem
-.terraform.lock.hcl
+# Node dependencies
+node_modules/
+npm-debug.log
+
+# Local environment files
+.env.local
+.env
+
+# Windows reserved names (prevent accidental creation)
+nul
