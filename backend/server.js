@@ -516,7 +516,9 @@ app.get('/api/health', async (req, res) => {
     storage: {
       path: path.join(__dirname, 'uploads'),
       exists: fs.existsSync(path.join(__dirname, 'uploads')),
-      writable: false
+      writable: false,
+      isS3: fs.existsSync(path.join(__dirname, 'uploads', '.mount_marker')),
+      mountStatus: 'unknown'
     }
   };
 
@@ -532,6 +534,8 @@ app.get('/api/health', async (req, res) => {
     fs.writeFileSync(testFile, 'ok');
     fs.unlinkSync(testFile);
     healthcheck.storage.writable = true;
+    healthcheck.storage.mountStatus = healthcheck.storage.isS3 ? 'verified_s3' : 'local_disk_fallback_detected';
+    if (!healthcheck.storage.isS3) healthcheck.message = 'WARNING: Storage is running on local disk, not S3';
   } catch (e) {
     healthcheck.storage.error = e.message;
   }

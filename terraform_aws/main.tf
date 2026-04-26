@@ -202,15 +202,18 @@ resource "aws_instance" "app_server" {
     # Setup S3 mount
     sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf > /dev/null 2>&1 || true
     mkdir -p /mnt/s3_uploads
-    echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com,nonempty,umask=000,use_path_request_style,max_stat_cache_size=100000 0 0" >> /etc/fstab
+    echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com,nonempty,umask=000,use_path_request_style,complementary_stat,max_stat_cache_size=100000 0 0" >> /etc/fstab
     
-    # Retry mount logic to handle IAM propagation delays
-    for i in {1..5}; do mount /mnt/s3_uploads && break || sleep 10; done
-    
-    # Create directory structure inside the mount
-    sudo -u ubuntu mkdir -p /mnt/s3_uploads/frontend /mnt/s3_uploads/backend/uploads
-    chmod -R 777 /mnt/s3_uploads || true
-    chown -R ubuntu:ubuntu /mnt/s3_uploads
+    # Hard mount verification. If it doesn't mount, we don't create local folders.
+    for i in {1..10}; do
+       mount /mnt/s3_uploads && if mountpoint -q /mnt/s3_uploads; then break; fi || sleep 10
+    done
+
+    if mountpoint -q /mnt/s3_uploads; then
+       mkdir -p /mnt/s3_uploads/frontend /mnt/s3_uploads/backend/uploads
+       chmod -R 777 /mnt/s3_uploads
+       chown -R ubuntu:ubuntu /mnt/s3_uploads
+    fi
 
     # Install K3s (Master + Slave on one node) - Disable Traefik to save RAM
     curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --disable traefik" sh -

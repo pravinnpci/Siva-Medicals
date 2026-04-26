@@ -201,7 +201,9 @@ jobs:
       - name: Sync S3 Assets
         run: |
           mkdir -p backend/uploads/
+          echo "SIVA_S3_MOUNT_ACTIVE" > backend/uploads/.mount_marker
           aws s3 sync frontend/ s3://${{ needs.terraform-infrastructure.outputs.discovered_bucket }}/frontend/ --delete --region ${{ env.AWS_REGION }}
+          aws s3 cp backend/uploads/.mount_marker s3://${{ needs.terraform-infrastructure.outputs.discovered_bucket }}/backend/uploads/.mount_marker --region ${{ env.AWS_REGION }}
 
   kubernetes-setup:
     name: "5: K3s Cluster Setup"
