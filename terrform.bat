@@ -432,7 +432,7 @@ echo         location /api {
 echo             proxy_pass http://localhost:30001;
 echo         }
 echo         location /admin {
-echo             proxy_pass http://localhost:3001;
+echo             proxy_pass http://localhost:30001;
 echo             proxy_set_header Host $host;
 echo         }
 echo     }
@@ -445,7 +445,7 @@ echo     Name = "${var.project_name}-AppServer"
 echo   }
 echo.
 echo   lifecycle {
-echo     ignore_changes = [ami]
+echo     ignore_changes = [ami, user_data, subnet_id, vpc_security_group_ids, key_name, iam_instance_profile]
 echo   }
 echo }
 echo.

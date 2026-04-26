@@ -333,6 +333,10 @@ resource "aws_instance" "app_server" {
         location /api {
             proxy_pass http://localhost:30001;
         }
+        location /admin {
+            proxy_pass http://localhost:30001;
+            proxy_set_header Host $host;
+        }
     }
     NX
     systemctl restart nginx
@@ -342,7 +346,8 @@ resource "aws_instance" "app_server" {
     Name = "${var.project_name}-AppServer"
   }
   lifecycle {
-    ignore_changes = [ami]
+    # Broaden ignore_changes to prevent unwanted replacement of production instance
+    ignore_changes = [ami, user_data, subnet_id, vpc_security_group_ids, key_name, iam_instance_profile]
     prevent_destroy = true
   }
 }

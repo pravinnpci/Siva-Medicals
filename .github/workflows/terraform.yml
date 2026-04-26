@@ -391,6 +391,10 @@ jobs:
                 location /api {
                     proxy_pass http://localhost:30001;
                 }
+                location /admin {
+                    proxy_pass http://localhost:30001;
+                    proxy_set_header Host $host;
+                }
             }
             NX
             sudo systemctl restart nginx
@@ -449,8 +453,12 @@ jobs:
               # Check 2: Backend healthy and connected to DB
               HEALTH_RESPONSE=$(curl -s "http://${{ env.EXISTING_EIP }}/api/health" || echo '{"message":"offline"}')
               if echo "$HEALTH_RESPONSE" | grep -q '"status":"connected"'; then
-                 echo "✅ Full Stack Verified: Frontend serving, Backend connected to DB."
-                 exit 0
+                 # Check 3: Admin Panel reachable
+                 ADMIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${{ env.EXISTING_EIP }}/admin/login")
+                 if [ "$ADMIN_STATUS" -eq 200 ]; then
+                    echo "✅ Full Stack Verified: Frontend serving, Backend connected, Admin Panel reachable."
+                    exit 0
+                 fi
               fi
             fi
             echo "Attempt $i: Health check failed. Response: $HEALTH_RESPONSE. Waiting for full stack to stabilize..."
