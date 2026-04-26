@@ -422,13 +422,14 @@ jobs:
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             echo "--- Internal Connectivity Check: Backend -> Postgres ---"
             # Attempt to reach DB from within the siva-medicals pod
-            for i in {1..5}; do
-              if sudo /usr/local/bin/kubectl exec statefulset/siva-medicals -- nc -zv db 5432 2>&1 | grep -q "open"; then
+            for i in {1..10}; do
+              echo "Testing connection to db:5432 (Attempt $i/10)..."
+              if sudo /usr/local/bin/kubectl exec statefulset/siva-medicals -- timeout 2 nc -zv db 5432; then
                 echo "✅ Internal K8s network verified: backend can reach db."
                 exit 0
               fi
-              echo "Waiting for database service... ($i/5)"
-              sleep 10
+              echo "Waiting for database to accept connections..."
+              sleep 15
             done
             echo "❌ Internal Connectivity Failed!"
             exit 1

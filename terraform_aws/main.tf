@@ -293,6 +293,9 @@ resource "aws_instance" "app_server" {
             ports: [{ containerPort: 3001 }]
             env:
             - { name: DB_HOST, value: "db" }
+            - { name: DB_PORT, value: "5432" }
+            - { name: DB_USER, value: "postgres" }
+            - { name: DB_NAME, value: "siva_medicals" }
             - { name: DB_PASSWORD, value: "admin123" }
             volumeMounts: [{ name: uploads, mountPath: /app/uploads }]
           volumes: [{ name: uploads, hostPath: { path: /mnt/s3_uploads/backend/uploads } }]
