@@ -206,7 +206,8 @@ resource "aws_instance" "app_server" {
     mount -a || true
 
     # Install K3s (Master + Slave on one node) - Disable Traefik to save RAM
-    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --disable traefik
+    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --disable traefik" sh -
+
     # Create kubectl symlink immediately
     ln -s /usr/local/bin/k3s /usr/local/bin/kubectl || true
     
@@ -216,10 +217,6 @@ resource "aws_instance" "app_server" {
        if [ -f /usr/local/bin/kubectl ] && /usr/local/bin/kubectl get nodes | grep -q "Ready"; then break; fi
        sleep 10
     done
-
-    # Clean up legacy deployments if they exist
-    /usr/local/bin/k3s kubectl delete deployment postgres siva-medicals --ignore-not-found
-    sleep 10
 
     # Deploy to Kubernetes
     cat <<K8S | /usr/local/bin/k3s kubectl apply -f -
@@ -241,6 +238,7 @@ resource "aws_instance" "app_server" {
     spec:
       storageClassName: manual
       accessModes: [ReadWriteOnce]
+      volumeName: postgres-pv
       resources:
         requests:
           storage: 10Gi
@@ -298,7 +296,10 @@ resource "aws_instance" "app_server" {
             - { name: DB_PASSWORD, value: "admin123" }
             volumeMounts: [{ name: uploads, mountPath: /app/uploads }]
           volumes: [{ name: uploads, hostPath: { path: /mnt/s3_uploads/backend/uploads } }]
-    K8Se
+    K8S
+
+    # Setup Nginx
+    cat <<'NX' > /etc/nginx/sites-available/default
     server {
         listen 80;
         resolver 8.8.8.8 1.1.1.1 valid=30s;
@@ -309,6 +310,7 @@ resource "aws_instance" "app_server" {
             proxy_set_header Host $s3_backend;
             proxy_intercept_errors on;
             error_page 404 = /index.html;
+        }
         location /uploads {
             alias /mnt/s3_uploads/backend/uploads/;
         }

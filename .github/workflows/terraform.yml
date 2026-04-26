@@ -273,14 +273,11 @@ jobs:
             BUCKET_NAME="${{ env.BUCKET_NAME }}"
             
             echo "--- Forced Cleanup of Resources ---"
-            sudo /usr/local/bin/kubectl delete deployment postgres siva-medicals --ignore-not-found || true
+            sudo /usr/local/bin/kubectl delete statefulset postgres siva-medicals --ignore-not-found || true
             
-            # StorageClassName is immutable; we must delete and recreate the PVC
-            echo "Deleting old PVC to allow storage class update..."
-            sudo /usr/local/bin/kubectl delete pvc postgres-pvc --ignore-not-found --wait=false || true
-            sudo /usr/local/bin/kubectl patch pvc postgres-pvc -p '{"metadata":{"finalizers":null}}' --type=merge || true
-            # Ensure it is truly gone
-            sudo /usr/local/bin/kubectl delete pvc postgres-pvc --ignore-not-found --grace-period=0 --force || true
+            echo "Cleaning up old storage resources..."
+            sudo /usr/local/bin/kubectl delete pvc postgres-pvc --ignore-not-found || true
+            sudo /usr/local/bin/kubectl delete pv postgres-pv --ignore-not-found || true
             
             echo "Ensuring volume permissions for Postgres..."
             sudo mkdir -p /mnt/postgres_data
@@ -305,6 +302,7 @@ jobs:
               name: postgres-pvc
             spec:
               storageClassName: manual
+              volumeName: postgres-pv
               accessModes: [ReadWriteOnce]
               resources: { requests: { storage: 10Gi } }
             ---
