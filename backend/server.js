@@ -29,10 +29,12 @@ try {
 
   pool = new Pool(connectionConfig);
 
-  // Test connection
-  pool.query('SELECT NOW()').then(async () => {
-    console.log('✅ Database connected successfully. Initializing schema...');
-    
+  // Function to initialize database schema
+  const initializeSchema = async () => {
+    try {
+      await pool.query('SELECT NOW()');
+      console.log('✅ Database connected successfully. Initializing schema...');
+
     const initSql = `
       BEGIN;
       CREATE TABLE IF NOT EXISTS users (
@@ -110,14 +112,32 @@ try {
     const adminTest = await bcrypt.compare('admin123', admin123Hash);
     const pravinTest = await bcrypt.compare('admin', pravinAdminHash);
     console.log(`🧪 Hash Self-Test: admin123(${adminTest}), admin(${pravinTest})`);
-
-  }).then(() => {
     console.log('✅ Database schema initialized successfully');
-  }).catch(err => {
-    console.warn('⚠️  Database connection failed:', err.message);
-    console.warn('Running in offline mode - some features disabled');
-    pool = null;
-  });
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  // Attempt initialization with retries to handle K8s startup delays
+  const startup = async (retries = 10) => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        await initializeSchema();
+        return;
+      } catch (err) {
+        console.warn(`⚠️  Database connection attempt ${i + 1} failed: ${err.message}`);
+        if (i < retries - 1) {
+          console.log(`Retrying in 10 seconds...`);
+          await new Promise(resolve => setTimeout(resolve, 10000));
+        } else {
+          console.warn('❌ Max retries reached. System will remain in limited mode until DB is available.');
+          // We no longer set pool = null, allowing the health check to succeed later
+        }
+      }
+    }
+  };
+
+  startup();
 } catch (error) {
   console.warn('⚠️  Database configuration error:', error.message);
   console.warn('Running in offline mode - some features disabled');
