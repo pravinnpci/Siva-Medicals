@@ -283,7 +283,7 @@ jobs:
                echo "Adding missing S3 mount entry to /etc/fstab..."
                sudo mkdir -p /mnt/s3_uploads
                sudo sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf || true
-               echo "s3fs#${{ env.BUCKET_NAME }} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=ap-south-2,url=https://s3.ap-south-2.amazonaws.com,nonempty,umask=000,use_path_request_style,sigv4,complementary_stat,max_stat_cache_size=100000 0 0" | sudo tee -a /etc/fstab
+               echo "s3fs#${{ env.BUCKET_NAME }} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=ap-south-2,url=https://s3.ap-south-2.amazonaws.com,nonempty,umask=000 0 0" | sudo tee -a /etc/fstab
             fi
 
             # 3. Execution: Force mount to ensure S3 assets are accessible

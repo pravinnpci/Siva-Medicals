@@ -202,7 +202,7 @@ resource "aws_instance" "app_server" {
     # Setup S3 mount
     sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf > /dev/null 2>&1 || true
     mkdir -p /mnt/s3_uploads
-    echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com,nonempty,umask=000,use_path_request_style,sigv4,complementary_stat,max_stat_cache_size=100000 0 0" >> /etc/fstab
+    echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com,nonempty,umask=000 0 0" >> /etc/fstab
     
     # Hard mount verification. Refuse to create local directories to avoid "EC2 local storage" fallback.
     for i in {1..12}; do
