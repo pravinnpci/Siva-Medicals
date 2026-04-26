@@ -276,10 +276,10 @@ jobs:
           command_timeout: 25m
           script: |
             # Ensure S3 mount is active and permissions are correct
+            sudo mount -a || true
             if ! mountpoint -q /mnt/s3_uploads; then
-              echo "S3 not mounted. Attempting manual mount..."
-              sudo mount /mnt/s3_uploads || true
-              sleep 5
+              echo "❌ ERROR: S3 Bucket NOT MOUNTED. Refusing to proceed to prevent local file storage."
+              exit 1
             fi
             
             sudo mkdir -p /mnt/s3_uploads/frontend
@@ -477,9 +477,9 @@ jobs:
           for i in {1..20}; do
             # Check 1: Backend health endpoint (Primary indicator of stack readiness)
             HEALTH_RESPONSE=$(curl -s "http://${{ env.EXISTING_EIP }}/api/health" || echo '{"message":"offline"}')
-            if echo "$HEALTH_RESPONSE" | grep -q '"status":"connected"'; then
+            if echo "$HEALTH_RESPONSE" | grep -q '"mountStatus":"verified_s3"'; then
                FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${{ env.EXISTING_EIP }}/")
-               echo "Backend is UP. Frontend Status: $FRONTEND_STATUS. Proceeding with Functional Tests..."
+               echo "✅ Storage Verified (S3). Backend is UP. Frontend Status: $FRONTEND_STATUS. Proceeding with Functional Tests..."
                  
                  # Create a dummy test file
                  echo "test prescription data" > test_prescription.jpg
@@ -507,6 +507,7 @@ jobs:
                     fi
                  fi
               fi
+            fi
             echo "Attempt $i: Waiting for stack to stabilize. Frontend: $FRONTEND_STATUS, Health: $HEALTH_RESPONSE"
             sleep 15
           done
