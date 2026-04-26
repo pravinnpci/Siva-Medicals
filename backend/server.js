@@ -29,6 +29,11 @@ try {
 
   pool = new Pool(connectionConfig);
 
+  // Handle unexpected errors on idle clients to prevent process crashes
+  pool.on('error', (err) => {
+    console.error('Unexpected error on idle database client:', err);
+  });
+
   // Function to initialize database schema
   const initializeSchema = async () => {
     try {
@@ -112,7 +117,7 @@ try {
     const adminTest = await bcrypt.compare('admin123', admin123Hash);
     const pravinTest = await bcrypt.compare('admin', pravinAdminHash);
     console.log(`🧪 Hash Self-Test: admin123(${adminTest}), admin(${pravinTest})`);
-    console.log('✅ Database schema initialized successfully');
+    console.log('✅ Database schema and seeding initialized successfully');
     } catch (err) {
       throw err;
     }
@@ -560,7 +565,7 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
     let twilioCustomerError = null;
 
     const whatsappFrom = process.env.TWILIO_WHATSAPP_FROM || process.env.TWILIO_WHATSAPP_NUMBER;
-    const websiteWhatsappNumber = process.env.WEBSITE_WHATSAPP_NUMBER || whatsapp || '9245464648';
+    const websiteWhatsappNumber = process.env.WEBSITE_WHATSAPP_NUMBER || whatsapp || '9952930484'; // Consistent with business contact
     const ownerRecipient = formatWhatsAppNumber(websiteWhatsappNumber);
 
     console.log('\n🔍 WhatsApp Send Debug:');

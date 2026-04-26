@@ -166,9 +166,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const fallback = confirm(
           'Unable to connect to server. Would you like to contact us directly instead?\n\n' +
-          '📞 Phone: 9245464648\n' +
-          '💳 GPay: 9097732213\n' +
-          '📍 Address: 1/47, Perumal Kovil Street, Madampakkam\n\n' +
+          '📞 Phone: 9952930484\n' +
+          '� GPay: 9097732213\n' +
+          '� Address: 1/47, Perumal Kovil Street, Madampakkam\n\n' +
           'Click OK to call now, or Cancel to try again later.'
         );
 
