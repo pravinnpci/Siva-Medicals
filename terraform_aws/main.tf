@@ -195,7 +195,6 @@ resource "aws_instance" "app_server" {
       mkdir -p /mnt/postgres_data
       mount $DEVICE /mnt/postgres_data
       echo "$DEVICE /mnt/postgres_data ext4 defaults,nofail 0 2" >> /etc/fstab
-      mkdir -p /mnt/postgres_data/pgdata
       chown -R 999:999 /mnt/postgres_data
       chmod 700 /mnt/postgres_data
     fi

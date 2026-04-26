@@ -281,7 +281,7 @@ jobs:
             
             # Force Postgres to re-initialize by clearing the host directory
             echo "Wiping old database files to force re-initialization..."
-            sudo rm -rf /mnt/postgres_data/*
+            sudo find /mnt/postgres_data -mindepth 1 -delete || true
             
             echo "Ensuring volume permissions for Postgres..."
             sudo mkdir -p /mnt/postgres_data
