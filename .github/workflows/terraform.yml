@@ -274,7 +274,12 @@ jobs:
           command_timeout: 25m
           script: |
             # Ensure S3 mount is active and permissions are correct
-            sudo mount -a || true
+            if ! mountpoint -q /mnt/s3_uploads; then
+              echo "S3 not mounted. Attempting manual mount..."
+              sudo mount /mnt/s3_uploads || true
+              sleep 5
+            fi
+            
             sudo mkdir -p /mnt/s3_uploads/frontend
             sudo mkdir -p /mnt/s3_uploads/backend/uploads
             sudo chmod -R 777 /mnt/s3_uploads

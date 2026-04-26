@@ -512,6 +512,11 @@ app.get('/api/health', async (req, res) => {
       status: 'unknown',
       host: process.env.DB_HOST || 'localhost',
       port: process.env.DB_PORT || 5432
+    },
+    storage: {
+      path: path.join(__dirname, 'uploads'),
+      exists: fs.existsSync(path.join(__dirname, 'uploads')),
+      writable: false
     }
   };
 
@@ -519,6 +524,16 @@ app.get('/api/health', async (req, res) => {
     healthcheck.database.status = 'unconfigured/disconnected';
     healthcheck.message = 'Database pool not initialized';
     return res.status(503).json(healthcheck);
+  }
+
+  try {
+    // Check storage writability to verify S3 mount/local disk access
+    const testFile = path.join(__dirname, 'uploads', '.healthcheck');
+    fs.writeFileSync(testFile, 'ok');
+    fs.unlinkSync(testFile);
+    healthcheck.storage.writable = true;
+  } catch (e) {
+    healthcheck.storage.error = e.message;
   }
 
   try {

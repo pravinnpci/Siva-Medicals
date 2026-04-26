@@ -202,13 +202,14 @@ resource "aws_instance" "app_server" {
     # Setup S3 mount
     sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf > /dev/null 2>&1 || true
     mkdir -p /mnt/s3_uploads
-    echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com,nonempty,umask=000 0 0" >> /etc/fstab
-    mount -a
+    # Added use_path_request_style for better compatibility in opt-in regions like Hyderabad
+    echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com,nonempty,umask=000,use_path_request_style 0 0" >> /etc/fstab
+    mount /mnt/s3_uploads || (sleep 10 && mount /mnt/s3_uploads)
     
     # Create directory structure inside the mount
-    mkdir -p /mnt/s3_uploads/frontend
-    mkdir -p /mnt/s3_uploads/backend/uploads
-    chmod -R 777 /mnt/s3_uploads
+    mkdir -p /mnt/s3_uploads/frontend || true
+    mkdir -p /mnt/s3_uploads/backend/uploads || true
+    chmod -R 777 /mnt/s3_uploads || true
     chown -R ubuntu:ubuntu /mnt/s3_uploads
 
     # Install K3s (Master + Slave on one node) - Disable Traefik to save RAM
