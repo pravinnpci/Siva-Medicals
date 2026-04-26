@@ -327,6 +327,7 @@ jobs:
                   - name: postgres
                     image: postgres:14
                     env:
+                    - { name: POSTGRES_DB, value: "siva_medicals" }
                     - { name: POSTGRES_PASSWORD, value: "admin123" }
                     # Fix for lost+found folder error on new EBS volumes
                     - { name: PGDATA, value: "/var/lib/postgresql/data/pgdata" }
@@ -448,7 +449,7 @@ jobs:
                  exit 0
               fi
             fi
-            echo "Attempt $i: Backend status: $HTTP_STATUS, DB status: $DB_STATUS. Waiting for full stack to stabilize..."
+            echo "Attempt $i: Health check failed. Response: $HEALTH_RESPONSE. Waiting for full stack to stabilize..."
             sleep 15
           done
           echo "❌ Full stack health check timed out after 5 minutes."

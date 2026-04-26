@@ -227,6 +227,7 @@ resource "aws_instance" "app_server" {
     spec:
       capacity:
         storage: 10Gi
+      storageClassName: manual
       accessModes: [ReadWriteOnce]
       hostPath:
         path: "/mnt/postgres_data"
@@ -266,6 +267,7 @@ resource "aws_instance" "app_server" {
           - name: postgres
             image: postgres:14
             env:
+            - { name: POSTGRES_DB, value: "siva_medicals" }
             - { name: POSTGRES_PASSWORD, value: "admin123" }
             - { name: PGDATA, value: "/var/lib/postgresql/data/pgdata" }
             ports:
