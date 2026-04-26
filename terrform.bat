@@ -374,7 +374,7 @@ echo.
 echo     # Mount S3 Bucket for Uploads
 echo     sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
 echo     mkdir -p /mnt/s3_uploads
-echo     echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com,nonempty 0 0" ^>^> /etc/fstab
+echo     echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com,nonempty,umask=000 0 0" ^>^> /etc/fstab
 echo     mount -a
 echo.
 echo     # Install K3s
