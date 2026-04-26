@@ -275,8 +275,14 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           command_timeout: 25m
           script: |
-            # Ensure S3 mount is active and permissions are correct
-            sudo mount -a || true
+            # Fix fstab potential corruption from bad loop device detection
+            sudo sed -i '/\/dev\/loop/d' /etc/fstab
+            
+            # Ensure S3 mount is active specifically
+            if ! mountpoint -q /mnt/s3_uploads; then
+               sudo mount /mnt/s3_uploads || true
+            fi
+            
             if ! mountpoint -q /mnt/s3_uploads; then
               echo "❌ ERROR: S3 Bucket NOT MOUNTED. Refusing to proceed to prevent local file storage."
               exit 1

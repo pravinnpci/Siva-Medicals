@@ -558,6 +558,7 @@ app.get('/api/health', async (req, res) => {
 // Contact form submission (from frontend) with file upload support
 app.post('/api/contact', upload.single('prescription'), async (req, res) => {
   try {
+    console.log(`📩 New contact submission received from: ${req.body.email || 'unknown'}`);
     // Check if pool exists AND is connected
     if (!pool) return res.status(503).json({ error: 'Database not available' });
     try { await pool.query('SELECT 1'); } catch (e) {
@@ -572,6 +573,7 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
 
     // Ensure required fields
     if (!name || !email || !phone || !message) {
+      console.warn('⚠️ Missing required fields in submission');
       return res.status(400).json({ error: 'Missing required fields' });
     }
 

@@ -133,7 +133,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
       try {
         const apiUrl = '/api/contact';
-        console.log(`Submitting form to: ${window.location.origin}${apiUrl}`);
+        const fullUrl = `${window.location.origin}${apiUrl}`;
+        console.log(`🚀 Submitting form to: ${fullUrl}`);
 
         const response = await fetch(apiUrl, {
           method: 'POST',
