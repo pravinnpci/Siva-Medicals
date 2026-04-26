@@ -431,6 +431,10 @@ echo         }
 echo         location /api {
 echo             proxy_pass http://localhost:30001;
 echo         }
+echo         location /admin {
+echo             proxy_pass http://localhost:3001;
+echo             proxy_set_header Host $host;
+echo         }
 echo     }
 echo     NX
 echo     systemctl restart nginx

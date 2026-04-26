@@ -1,0 +1,52 @@
+name: Siva Medicals CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Initialize and Apply Terraform
+        env:
+          CI: "true"
+        run: |
+          # Note: In a real CI, you would run the terraform commands directly 
+          # or call a shell version of your .bat file.
+          # This assumes variables are set via GitHub Secrets.
+          cd terraform_aws
+          terraform init
+          terraform apply -auto-approve
+
+      - name: Wait for Services to Start
+        run: sleep 120 # Giving K3s and Nginx time to initialize
+
+      - name: Verify Admin Panel Access
+        run: |
+          INSTANCE_IP=$(terraform output -raw instance_public_ip)
+          echo "Testing Admin Panel at http://$INSTANCE_IP/admin/login"
+          
+          # Check if the Admin Login page returns a 200 OK
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://$INSTANCE_IP/admin/login)
+          
+          if [ "$STATUS" -eq 200 ]; then
+            echo "✅ Admin Panel is UP and reachable!"
+          else
+            echo "❌ Admin Panel is DOWN. Status code: $STATUS"
+            exit 1
+          fi
