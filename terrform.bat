@@ -160,6 +160,19 @@ echo   description = "Used if an existing bucket is found"
 echo   type        = string
 echo   default     = "!FOUND_BUCKET!"
 echo }
+echo.
+echo variable "twilio_account_sid" {
+echo   description = "Twilio Account SID"
+echo   type        = string
+echo   default     = ""
+echo }
+echo.
+echo variable "twilio_auth_token" {
+echo   description = "Twilio Auth Token"
+echo   type        = string
+echo   default     = ""
+echo   sensitive   = true
+echo }
 ) > variables.tf
 
 echo.
@@ -349,16 +362,18 @@ echo.
 echo     # Mount S3 Bucket for Uploads
 echo     sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
 echo     mkdir -p /mnt/s3_uploads
-echo     asho  -acom
-echo:
-echo     # Instal https://get.k3s.io ^| sh -
+echo     echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com,nonempty 0 0" ^>^> /etc/fstab
+echo     mount -a
+echo.
+echo     # Install K3s
+echo     curl -sfL https://get.k3s.io ^| INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --disable traefik" sh -
 echo     export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-echo:
+echo.
 echo     # Wait for K3s to be ready
-echo     while ^^! kubectl get nodes ^| grep -q "Ready"; do sleep 5; done
-echo:
+echo     while ^^! /usr/local/bin/k3s kubectl get nodes ^| grep -q "Ready"; do sleep 5; done
+echo.
 echo     # Deploy Postgres and Backend to Kubernetes
-echo     cat ^<^<K8S ^| kubectl apply -f -
+echo     cat ^<^<K8S ^| /usr/local/bin/k3s kubectl apply -f -
 echo     apiVersion: v1
 echo     kind: PersistentVolume
 echo     metadata:
@@ -383,10 +398,11 @@ echo         requests:
 echo           storage: 10Gi
 echo     ---
 echo     apiVersion: apps/v1
-echo     kind: Deployment
+echo     kind: StatefulSet
 echo     metadata:
 echo       name: siva-medicals
 echo     spec:
+echo       serviceName: "backend-service"
 echo       replicas: 1
 echo       selector:
 echo         matchLabels:
@@ -404,6 +420,14 @@ echo             - containerPort: 3001
 echo             env:
 echo             - name: DB_PASSWORD
 echo               value: "admin123"
+echo             - name: TWILIO_ACCOUNT_SID
+echo               value: "${var.twilio_account_sid}"
+echo             - name: TWILIO_AUTH_TOKEN
+echo               value: "${var.twilio_auth_token}"
+echo             - name: TWILIO_WHATSAPP_NUMBER
+echo               value: "${var.twilio_whatsapp_number}"
+echo             - name: WEBSITE_WHATSAPP_NUMBER
+echo               value: "${var.website_whatsapp_number}"
 echo             volumeMounts:
 echo             - name: uploads
 echo               mountPath: /app/uploads
@@ -417,12 +441,15 @@ echo     # Configure Nginx as Reverse Proxy
 echo     cat ^> /etc/nginx/sites-available/default ^<^<NX
 echo     server {
 echo         listen 80;
+echo         client_max_body_size 10M;
 echo         location / {
-echo             proxy_pass http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/frontend/;
-echo             proxy_set_header Host ${aws_s3_bucket.data_bucket.bucket_regional_domain_name};
+echo             root /mnt/s3_uploads/frontend;
+echo             index index.html;
+echo             try_files $uri $uri/ /index.html;
 echo         }
 echo         location /uploads {
 echo             alias /mnt/s3_uploads/backend/uploads/;
+echo             sendfile off;
 echo         }
 echo         location /api {
 echo             proxy_pass http://localhost:30001;

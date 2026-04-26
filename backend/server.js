@@ -438,7 +438,7 @@ app.post('/admin/upload', requireAuth, upload.single('file'), async (req, res) =
       req.file.originalname,
       req.file.mimetype,
       req.file.size,
-      req.file.path,
+      `/uploads/${req.file.filename}`,
       req.session.userId
     ]);
 

@@ -39,3 +39,28 @@ variable "public_key_data" {
   type        = string
   default     = ""
 }
+
+variable "twilio_account_sid" {
+  description = "Twilio Account SID"
+  type        = string
+  default     = ""
+}
+
+variable "twilio_auth_token" {
+  description = "Twilio Auth Token"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "twilio_whatsapp_number" {
+  description = "Twilio WhatsApp number (sandbox or verified)"
+  type        = string
+  default     = "+16626893955"
+}
+
+variable "website_whatsapp_number" {
+  description = "WhatsApp number where owner receives notifications"
+  type        = string
+  default     = "9245464648"
+}

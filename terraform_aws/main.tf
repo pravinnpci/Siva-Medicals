@@ -206,6 +206,7 @@ resource "aws_instance" "app_server" {
     mount -a
     
     # Create directory structure inside the mount
+    mkdir -p /mnt/s3_uploads/frontend
     mkdir -p /mnt/s3_uploads/backend/uploads
     chmod -R 777 /mnt/s3_uploads
     chown -R ubuntu:ubuntu /mnt/s3_uploads
@@ -314,6 +315,10 @@ resource "aws_instance" "app_server" {
             - { name: DB_USER, value: "postgres" }
             - { name: DB_NAME, value: "siva_medicals" }
             - { name: DB_PASSWORD, value: "admin123" }
+            - { name: TWILIO_ACCOUNT_SID, value: "${var.twilio_account_sid}" }
+            - { name: TWILIO_AUTH_TOKEN, value: "${var.twilio_auth_token}" }
+            - { name: TWILIO_WHATSAPP_NUMBER, value: "${var.twilio_whatsapp_number}" }
+            - { name: WEBSITE_WHATSAPP_NUMBER, value: "${var.website_whatsapp_number}" }
             volumeMounts: [{ name: uploads, mountPath: /app/uploads }]
           volumes: [{ name: uploads, hostPath: { path: /mnt/s3_uploads/backend/uploads } }]
     K8S
@@ -322,17 +327,17 @@ resource "aws_instance" "app_server" {
     cat <<'NX' > /etc/nginx/sites-available/default
     server {
         listen 80;
+        client_max_body_size 10M;
         resolver 8.8.8.8 1.1.1.1 valid=30s;
-        set $s3_backend '${aws_s3_bucket.data_bucket.id}.s3-website.ap-south-2.amazonaws.com';
 
         location / {
-            proxy_pass http://$s3_backend/frontend/;
-            proxy_set_header Host $s3_backend;
-            proxy_intercept_errors on;
-            error_page 404 = /index.html;
+            root /mnt/s3_uploads/frontend;
+            index index.html;
+            try_files $uri $uri/ /index.html;
         }
         location /uploads {
             alias /mnt/s3_uploads/backend/uploads/;
+            sendfile off;
         }
         location /api {
             proxy_pass http://localhost:30001;
