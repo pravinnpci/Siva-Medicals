@@ -173,6 +173,18 @@ echo   type        = string
 echo   default     = ""
 echo   sensitive   = true
 echo }
+echo.
+echo variable "twilio_whatsapp_number" {
+echo   description = "Twilio WhatsApp number"
+echo   type        = string
+echo   default     = "+16626893955"
+echo }
+echo.
+echo variable "website_whatsapp_number" {
+echo   description = "Website owner WhatsApp"
+echo   type        = string
+echo   default     = "9245464648"
+echo }
 ) > variables.tf
 
 echo.

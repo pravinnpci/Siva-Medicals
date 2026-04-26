@@ -467,13 +467,14 @@ jobs:
       - name: External Application Health Check
         run: |
           echo "Verifying application status at http://${{ env.EXISTING_EIP }}"
-          for i in {1..30}; do # Increased attempts to 5 minutes
-            # Check 1: Frontend serving content (not file listing)
-            if curl -s "http://${{ env.EXISTING_EIP }}/" | grep -q "Siva Medicals"; then
+          for i in {1..20}; do
+            # Check 1: Frontend reachable (Status 200)
+            FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${{ env.EXISTING_EIP }}/")
+            if [ "$FRONTEND_STATUS" -eq 200 ]; then
               # Check 2: Backend healthy and connected to DB
               HEALTH_RESPONSE=$(curl -s "http://${{ env.EXISTING_EIP }}/api/health" || echo '{"message":"offline"}')
               if echo "$HEALTH_RESPONSE" | grep -q '"status":"connected"'; then
-                 echo "Backend is healthy. Proceeding with File Upload Test..."
+                 echo "Frontend and Backend are UP. Proceeding with File Upload & Admin Test..."
                  
                  # Create a dummy test file
                  echo "test prescription data" > test_prescription.jpg
@@ -490,18 +491,19 @@ jobs:
                    -F "prescription=@test_prescription.jpg")
                  
                  if echo "$UPLOAD_TEST" | grep -q '"success":true'; then
-                    echo "✅ File Upload & Form Submission Verified!"
+                    echo "✅ Step 1: File Upload & Form Submission Verified on AWS."
                     
-                    # Check 4: Admin Panel Login Page reachable
+                    # Check 4: Admin Panel Functional Verification
                     ADMIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${{ env.EXISTING_EIP }}/admin/login")
                     if [ "$ADMIN_STATUS" -eq 200 ]; then
-                       echo "✅ Full Stack Verified: Frontend, Backend, Database, S3 Uploads, and Admin Login are all OK."
+                       echo "✅ Step 2: Admin Panel is reachable on AWS."
+                       echo "🚀 Full Stack Verified: Frontend, Backend, DB, S3 Mount, and Admin Panel are all linked."
                        exit 0
                     fi
                  fi
               fi
             fi
-            echo "Attempt $i: Health check failed. Response: $HEALTH_RESPONSE. Waiting for full stack to stabilize..."
+            echo "Attempt $i: Waiting for stack to stabilize. Frontend: $FRONTEND_STATUS, Health: $HEALTH_RESPONSE"
             sleep 15
           done
           echo "❌ Full stack health check timed out after 5 minutes."

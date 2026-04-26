@@ -319,6 +319,7 @@ resource "aws_instance" "app_server" {
             - { name: TWILIO_AUTH_TOKEN, value: "${var.twilio_auth_token}" }
             - { name: TWILIO_WHATSAPP_NUMBER, value: "${var.twilio_whatsapp_number}" }
             - { name: WEBSITE_WHATSAPP_NUMBER, value: "${var.website_whatsapp_number}" }
+            - { name: TWILIO_WHATSAPP_FROM, value: "${var.twilio_whatsapp_number}" }
             volumeMounts: [{ name: uploads, mountPath: /app/uploads }]
           volumes: [{ name: uploads, hostPath: { path: /mnt/s3_uploads/backend/uploads } }]
     K8S
