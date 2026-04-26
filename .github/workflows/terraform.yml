@@ -197,7 +197,6 @@ jobs:
         run: |
           mkdir -p backend/uploads/
           aws s3 sync frontend/ s3://${{ needs.terraform-infrastructure.outputs.discovered_bucket }}/frontend/ --delete --region ${{ env.AWS_REGION }}
-          aws s3 sync backend/uploads/ s3://${{ needs.terraform-infrastructure.outputs.discovered_bucket }}/backend/uploads/ --delete --region ${{ env.AWS_REGION }}
 
   kubernetes-setup:
     name: "5: K3s Cluster Setup"
@@ -269,6 +268,12 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           command_timeout: 25m
           script: |
+            # Ensure S3 mount is active and permissions are correct
+            sudo mount -a || true
+            sudo mkdir -p /mnt/s3_uploads/backend/uploads
+            sudo chmod -R 777 /mnt/s3_uploads
+            sudo chown -R ubuntu:ubuntu /mnt/s3_uploads
+
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             BUCKET_NAME="${{ env.BUCKET_NAME }}"
             
@@ -377,7 +382,7 @@ jobs:
             server {
                 listen 80;
                 resolver 8.8.8.8 1.1.1.1 valid=30s;
-                set $s3_backend 'siva-medicals-data-hyderabad-ap-south-2.s3-website.ap-south-2.amazonaws.com';
+                set $s3_backend '${{ env.BUCKET_NAME }}.s3-website.ap-south-2.amazonaws.com';
 
                 location / {
                     proxy_pass http://$s3_backend/frontend/;

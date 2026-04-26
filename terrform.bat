@@ -347,15 +347,11 @@ echo       chown -R 999:999 /mnt/postgres_data
 echo     fi
 echo.
 echo     # Mount S3 Bucket for Uploads
-echo     mkdir -p /mnt/s3_uploads
 echo     sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
-echo     echo "s3fs#${aws_s3_bucket.data_bucket.id} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=${var.aws_region},url=https://s3.${var.aws_region}.amazonaws.com 0 0" ^>^> /etc/fstab
-echo     mount /mnt/s3_uploads
-echo     mkdir -p /mnt/s3_uploads/backend/uploads
-echo     chmod 777 /mnt/s3_uploads/backend/uploads
+echo     mkdir -p /mnt/s3_uploads
+echo     asho  -acom
 echo:
-echo     # Install K3s (Master + Slave on one node)
-echo     curl -sfL https://get.k3s.io ^| sh -
+echo     # Instal https://get.k3s.io ^| sh -
 echo     export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 echo:
 echo     # Wait for K3s to be ready
