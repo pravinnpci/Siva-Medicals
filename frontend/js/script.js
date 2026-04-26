@@ -204,76 +204,8 @@ document.addEventListener('DOMContentLoaded', function() {
 // ========================================
 // 4. FORM VALIDATION - CONTACT FORM
 // ========================================
-
-document.addEventListener('DOMContentLoaded', function() {
-  const form = document.getElementById("contactForm");
-
-  if (form) {
-    form.addEventListener("submit", function(e) {
-      let isValid = true;
-      const errors = [];
-      
-      // Get form values
-      const name = document.getElementById("name").value.trim();
-      const email = document.getElementById("email").value.trim();
-      const phone = document.getElementById("phone").value.trim();
-      const subject = document.getElementById("subject").value;
-      const message = document.getElementById("message").value.trim();
-      const agree = document.getElementById("agree").checked;
-
-      // Validation checks
-      if (name === "") {
-        errors.push("Please enter your full name");
-        isValid = false;
-      }
-
-      if (email === "") {
-        errors.push("Please enter your email address");
-        isValid = false;
-      } else if (!isValidEmail(email)) {
-        errors.push("Please enter a valid email address");
-        isValid = false;
-      }
-
-      if (phone === "") {
-        errors.push("Please enter your phone number");
-        isValid = false;
-      } else if (!isValidPhone(phone)) {
-        errors.push("Please enter a valid phone number");
-        isValid = false;
-      }
-
-      if (subject === "") {
-        errors.push("Please select a subject");
-        isValid = false;
-      }
-
-      if (message === "") {
-        errors.push("Please enter your message");
-        isValid = false;
-      } else if (message.length < 10) {
-        errors.push("Message must be at least 10 characters long");
-        isValid = false;
-      }
-
-      if (!agree) {
-        errors.push("Please agree to the privacy policy and terms of service");
-        isValid = false;
-      }
-
-      if (!isValid) {
-        e.preventDefault();
-        showFormErrors(errors);
-      } else {
-        // Form is valid, let Formspree handle the submission
-        const submitBtn = form.querySelector('button[type="submit"]');
-        const originalText = submitBtn.innerHTML;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Sending...';
-        submitBtn.disabled = true;
-      }
-    });
-  }
-});
+// Note: Form handling has been moved to contact-api.js to support 
+// prescription uploads and WhatsApp notifications.
 
 // Show validation errors
 function showFormErrors(errors) {
