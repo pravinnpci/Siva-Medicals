@@ -1,4 +1,4 @@
-﻿﻿// ========================================
+﻿﻿﻿﻿// ========================================
 // CONTACT FORM API SUBMISSION
 // ========================================
 
@@ -126,9 +126,16 @@ document.addEventListener('DOMContentLoaded', function() {
       submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Sending...';
       submitBtn.disabled = true;
 
+      // Diagnostic check: Are we on S3?
+      if (window.location.hostname.includes('amazonaws.com')) {
+        console.warn('⚠️ Warning: Accessing via S3 URL. API calls to /api/contact will likely fail because S3 does not process POST requests. Please use the EC2 Public IP address.');
+      }
+
       try {
-        // Use relative path so Nginx handles proxying and solves CORS/Mixed Content issues
-        const response = await fetch('/api/contact', {
+        const apiUrl = '/api/contact';
+        console.log(`Submitting form to: ${window.location.origin}${apiUrl}`);
+
+        const response = await fetch(apiUrl, {
           method: 'POST',
           body: formData
         });

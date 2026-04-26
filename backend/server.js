@@ -125,6 +125,7 @@ try {
 
   // Attempt initialization with retries to handle K8s startup delays
   const startup = async (retries = 10) => {
+    console.log('🚀 Starting Database Initialization Sequence...');
     for (let i = 0; i < retries; i++) {
       try {
         await initializeSchema();
@@ -280,6 +281,7 @@ app.get('/admin/login', (req, res) => {
 app.post('/admin/login', async (req, res) => {
   try {
     const { username, password } = req.body;
+    if (!pool) throw new Error('Database pool not initialized');
 
     console.log(`🔐 Login attempt for username: ${username}`);
 
@@ -556,8 +558,10 @@ app.get('/api/health', async (req, res) => {
 // Contact form submission (from frontend) with file upload support
 app.post('/api/contact', upload.single('prescription'), async (req, res) => {
   try {
-    if (!pool) {
-      return res.status(503).json({ error: 'Database not available' });
+    // Check if pool exists AND is connected
+    if (!pool) return res.status(503).json({ error: 'Database not available' });
+    try { await pool.query('SELECT 1'); } catch (e) {
+      return res.status(503).json({ error: 'Database connection lost' });
     }
 
     const { name, email, phone, subject, message, address, gpay, whatsapp, category } = req.body;

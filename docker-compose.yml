@@ -20,7 +20,7 @@ services:
 
   backend:
     build: ./backend
-    image: pravinnpci/siva-backend:latest
+    image: pravinnpci/siva-medicals:latest
     container_name: siva_backend
     restart: always
     environment:
