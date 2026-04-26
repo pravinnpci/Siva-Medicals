@@ -756,9 +756,10 @@ app.delete('/admin/files/:id', requireAuth, async (req, res) => {
 
     const file = result.rows[0];
 
-    // Delete from filesystem
-    if (fs.existsSync(file.upload_path)) {
-      fs.unlinkSync(file.upload_path);
+    // Resolve filesystem path from web path for deletion
+    const fullPath = path.join(__dirname, 'uploads', path.basename(file.upload_path));
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
     }
 
     // Delete from database
