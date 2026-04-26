@@ -125,20 +125,20 @@ document.addEventListener('DOMContentLoaded', function() {
       const originalText = submitBtn.innerHTML;
       submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Sending...';
       submitBtn.disabled = true;
+      
+      // Determine API URL based on environment
+      let apiUrl = '/api/contact';
+      const EC2_PUBLIC_IP = '18.60.246.115';
 
-      // Diagnostic check: Are we on S3?
+      // If running on S3 (Amazon regional domain), we must point to the EC2 Public IP for POST support
       if (window.location.hostname.includes('amazonaws.com')) {
-        const s3Warning = '⚠️ You are accessing the site via an S3 URL. Form submissions will FAIL.\n\nPlease use the official IP address: http://18.60.246.115';
-        console.error(s3Warning);
-        showFormStatus(s3Warning, 'warning');
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
-        return;
+        apiUrl = `http://${EC2_PUBLIC_IP}/api/contact`;
+        console.log(`📡 S3 environment detected. Using absolute API endpoint: ${apiUrl}`);
       }
 
       try {
-        const apiUrl = '/api/contact';
-        const fullUrl = `${window.location.origin}${apiUrl}`;
+        // If apiUrl is absolute (starts with http), use it as is; otherwise prepend origin
+        const fullUrl = apiUrl.startsWith('http') ? apiUrl : `${window.location.origin}${apiUrl}`;
         console.log(`🚀 Submitting form to: ${fullUrl}`);
 
         const response = await fetch(apiUrl, {

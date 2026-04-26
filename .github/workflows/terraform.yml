@@ -275,10 +275,10 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           command_timeout: 25m
           script: |
-            # 1. Cleanup: Fix fstab potential corruption from bad loop device detection
+            # 1. Cleanup: Fix fstab potential corruption from bad loop device detection (systemd/snap conflict)
             sudo sed -i '/\/dev\/loop/d' /etc/fstab
             
-            # 2. Configuration: Ensure S3 mount entry exists in /etc/fstab if missing
+            # 2. Configuration: Ensure S3 mount entry exists in /etc/fstab for persistence
             if ! grep -q "/mnt/s3_uploads" /etc/fstab; then
                echo "Adding missing S3 mount entry to /etc/fstab..."
                sudo mkdir -p /mnt/s3_uploads
@@ -286,7 +286,7 @@ jobs:
                echo "s3fs#${{ env.BUCKET_NAME }} /mnt/s3_uploads fuse _netdev,allow_other,iam_role=auto,endpoint=ap-south-2,url=https://s3.ap-south-2.amazonaws.com,nonempty,umask=000,use_path_request_style,sigv4,complementary_stat,max_stat_cache_size=100000 0 0" | sudo tee -a /etc/fstab
             fi
 
-            # 3. Execution: Ensure S3 mount is active
+            # 3. Execution: Force mount to ensure S3 assets are accessible
             if ! mountpoint -q /mnt/s3_uploads; then
                sudo mount /mnt/s3_uploads || sudo mount -a || true
             fi
@@ -429,14 +429,14 @@ jobs:
                     proxy_set_header Host $host;
                     proxy_set_header X-Real-IP $remote_addr;
                     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-          proxy_set_header X-Forwarded-Proto $scheme;
+                    proxy_set_header X-Forwarded-Proto $scheme;
                 }
                 location /admin {
                     proxy_pass http://localhost:30001;
                     proxy_set_header Host $host;
                     proxy_set_header X-Real-IP $remote_addr;
                     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-          proxy_set_header X-Forwarded-Proto $scheme;
+                    proxy_set_header X-Forwarded-Proto $scheme;
                 }
             }
             NX
