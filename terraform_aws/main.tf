@@ -265,8 +265,18 @@ resource "aws_instance" "app_server" {
           containers:
           - name: postgres
             image: postgres:14
-            env: [{ name: POSTGRES_PASSWORD, value: "admin123" }]
-            volu 1
+            env:
+            - { name: POSTGRES_PASSWORD, value: "admin123" }
+            - { name: PGDATA, value: "/var/lib/postgresql/data/pgdata" }
+            ports:
+            - { containerPort: 5432 }
+            volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+          volumes:
+          - name: data
+            persistentVolumeClaim: { claimName: postgres-pvc }
+    ---
+    apiVersion: v1
     kind: Service
     metadata:
       name: backend-service

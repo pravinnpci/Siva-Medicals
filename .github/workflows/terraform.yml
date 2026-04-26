@@ -424,7 +424,8 @@ jobs:
             # Attempt to reach DB from within the siva-medicals pod
             for i in {1..10}; do
               echo "Testing connection to db:5432 (Attempt $i/10)..."
-              if sudo /usr/local/bin/kubectl exec statefulset/siva-medicals -- timeout 2 nc -zv db 5432; then
+              # Use Node.js to test connection since 'nc' is missing in the image
+              if sudo /usr/local/bin/kubectl exec statefulset/siva-medicals -- node -e "const net = require('net'); const c = net.createConnection({port: 5432, host: 'db', timeout: 2000}, () => { console.log('Connected'); process.exit(0); }); c.on('error', (e) => { console.error(e.message); process.exit(1); }); c.on('timeout', () => { console.error('Timeout'); process.exit(1); });"; then
                 echo "✅ Internal K8s network verified: backend can reach db."
                 exit 0
               fi
