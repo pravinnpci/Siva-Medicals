@@ -128,7 +128,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
       // Diagnostic check: Are we on S3?
       if (window.location.hostname.includes('amazonaws.com')) {
-        console.warn('⚠️ Warning: Accessing via S3 URL. API calls to /api/contact will likely fail because S3 does not process POST requests. Please use the EC2 Public IP address.');
+        const s3Warning = '⚠️ You are accessing the site via an S3 URL. Form submissions will FAIL.\n\nPlease use the official IP address: http://18.60.246.115';
+        console.error(s3Warning);
+        showFormStatus(s3Warning, 'warning');
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+        return;
       }
 
       try {
