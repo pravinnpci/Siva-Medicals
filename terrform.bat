@@ -430,10 +430,13 @@ echo             alias /mnt/s3_uploads/backend/uploads/;
 echo         }
 echo         location /api {
 echo             proxy_pass http://localhost:30001;
+echo             proxy_set_header Host $host;
+echo             proxy_set_header X-Real-IP $remote_addr;
 echo         }
 echo         location /admin {
 echo             proxy_pass http://localhost:30001;
 echo             proxy_set_header Host $host;
+echo             proxy_set_header X-Real-IP $remote_addr;
 echo         }
 echo     }
 echo     NX

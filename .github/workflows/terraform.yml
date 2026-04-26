@@ -453,11 +453,31 @@ jobs:
               # Check 2: Backend healthy and connected to DB
               HEALTH_RESPONSE=$(curl -s "http://${{ env.EXISTING_EIP }}/api/health" || echo '{"message":"offline"}')
               if echo "$HEALTH_RESPONSE" | grep -q '"status":"connected"'; then
-                 # Check 3: Admin Panel reachable
-                 ADMIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${{ env.EXISTING_EIP }}/admin/login")
-                 if [ "$ADMIN_STATUS" -eq 200 ]; then
-                    echo "✅ Full Stack Verified: Frontend serving, Backend connected, Admin Panel reachable."
-                    exit 0
+                 echo "Backend is healthy. Proceeding with File Upload Test..."
+                 
+                 # Create a dummy test file
+                 echo "test prescription data" > test_prescription.jpg
+                 
+                 # Check 3: Full Functional Test (Submit Contact Form with File)
+                 # This tests Nginx -> Backend -> DB -> S3 Mount
+                 UPLOAD_TEST=$(curl -s -X POST "http://${{ env.EXISTING_EIP }}/api/contact" \
+                   -F "name=CI-Test-User" \
+                   -F "email=test@example.com" \
+                   -F "phone=9245464648" \
+                   -F "subject=CI/CD Health Check" \
+                   -F "message=Automated verification test" \
+                   -F "category=With Prescription" \
+                   -F "prescription=@test_prescription.jpg")
+                 
+                 if echo "$UPLOAD_TEST" | grep -q '"success":true'; then
+                    echo "✅ File Upload & Form Submission Verified!"
+                    
+                    # Check 4: Admin Panel Login Page reachable
+                    ADMIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${{ env.EXISTING_EIP }}/admin/login")
+                    if [ "$ADMIN_STATUS" -eq 200 ]; then
+                       echo "✅ Full Stack Verified: Frontend, Backend, Database, S3 Uploads, and Admin Login are all OK."
+                       exit 0
+                    fi
                  fi
               fi
             fi
