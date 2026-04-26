@@ -524,6 +524,16 @@ app.get('/api/health', async (req, res) => {
     }
   };
 
+  // Ensure upload directory exists before performing health check write test
+  const uploadsDir = path.join(__dirname, 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    try {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    } catch (e) {
+      console.warn('Healthcheck: Could not create uploads directory:', e.message);
+    }
+  }
+
   if (!pool) {
     healthcheck.database.status = 'unconfigured/disconnected';
     healthcheck.message = 'Database pool not initialized';
