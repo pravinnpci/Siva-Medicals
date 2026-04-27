@@ -244,10 +244,12 @@ document.addEventListener('DOMContentLoaded', function() {
     let scrollTop = window.scrollY;
 
     // Add shadow to navbar on scroll
-    if (scrollTop > 50) {
-      navbar?.style.boxShadow = '0 2px 12px rgba(0, 0, 0, 0.15)';
-    } else {
-      navbar?.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
+    if (navbar) {
+      if (scrollTop > 50) {
+        navbar.style.boxShadow = '0 2px 12px rgba(0, 0, 0, 0.15)';
+      } else {
+        navbar.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
+      }
     }
 
     lastScrollTop = scrollTop;

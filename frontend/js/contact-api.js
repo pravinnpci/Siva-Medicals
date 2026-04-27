@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return el ? el.value.trim() : null;
       };
 
-      const name = getVal('name');
+      const name = getVal('fullName');
       const email = getVal('email');
       const phone = getVal('phone');
       const category = getVal('category');
