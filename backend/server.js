@@ -518,19 +518,17 @@ app.get('/api/health', async (req, res) => {
       port: process.env.DB_PORT || 5432
     },
     storage: {
-      path: path.join(__dirname, 'uploads'),
-      exists: fs.existsSync(path.join(__dirname, 'uploads')),
+      path: UPLOADS_DIR,
+      exists: fs.existsSync(UPLOADS_DIR),
       writable: false,
-      isS3: fs.existsSync(path.join(__dirname, 'uploads', '.mount_marker')),
+      isS3: fs.existsSync(path.join(UPLOADS_DIR, '.mount_marker')),
       mountStatus: 'unknown'
     }
   };
 
-  // Ensure upload directory exists before performing health check write test
-  const uploadsDir = path.join(__dirname, 'uploads');
-  if (!fs.existsSync(uploadsDir)) {
+  if (!fs.existsSync(UPLOADS_DIR)) {
     try {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
     } catch (e) {
       console.warn('Healthcheck: Could not create uploads directory:', e.message);
     }
@@ -544,7 +542,7 @@ app.get('/api/health', async (req, res) => {
 
   try {
     // Check storage writability to verify S3 mount/local disk access
-    const testFile = path.join(__dirname, 'uploads', '.healthcheck');
+    const testFile = path.join(UPLOADS_DIR, '.healthcheck');
     fs.writeFileSync(testFile, 'ok');
     fs.unlinkSync(testFile);
     healthcheck.storage.writable = true;

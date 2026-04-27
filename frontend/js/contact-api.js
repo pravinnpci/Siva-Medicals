@@ -11,7 +11,8 @@ document.addEventListener('DOMContentLoaded', function() {
   // Show/hide prescription file upload based on category
   if (categorySelect) {
     categorySelect.addEventListener('change', function() {
-      if (this.value === 'with_prescription') {
+      const val = this.value.toLowerCase();
+      if (val === 'with_prescription' || val.includes('prescription')) {
         prescriptionFileGroup.style.display = 'block';
         prescriptionFile.required = true;
       } else {
@@ -83,7 +84,7 @@ document.addEventListener('DOMContentLoaded', function() {
         isValid = false;
       }
 
-      if (category === 'with_prescription') {
+      if (category.toLowerCase().includes('prescription')) {
         if (!prescriptionFileInput) {
           errors.push('Please upload a prescription photo');
           isValid = false;
@@ -133,7 +134,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // If running on S3 (Amazon regional domain), we must point to the EC2 Public IP
       if (window.location.hostname.includes('amazonaws.com')) {
         if (window.location.protocol === 'https:') {
-          const mixedContentError = '⚠️ Security Block: You are using HTTPS on S3, but the API requires HTTP.\n\nPlease visit the official site at: http://18.60.246.115/frontend/contact.html';
+          const mixedContentError = '⚠️ Security Block: Your browser blocks submissions from HTTPS to HTTP.\n\nRedirecting you to the official site...';
           console.error(mixedContentError);
           showFormStatus(mixedContentError, 'warning');
           submitBtn.innerHTML = originalText;
