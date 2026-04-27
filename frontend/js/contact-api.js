@@ -184,9 +184,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 successMessage = 'Your request has been received and our team has been notified. We tried to send you a WhatsApp confirmation too.';
               } else if (result.whatsapp.customerStatus === 'sent' && result.whatsapp.ownerStatus !== 'sent') {
                 successMessage = 'Your request has been received and a WhatsApp confirmation was sent to you.';
-              } else if (result.whatsapp.status === 'failed') {
-                successMessage = 'Message sent, but WhatsApp notifications could not be delivered. Our team will still contact you soon.';
               }
+            }
+
+            if (result.whatsapp && result.whatsapp.status === 'failed') {
+              let tip = 'Note: Message sent, but WhatsApp notifications failed.';
+              if (result.whatsapp.customerError && result.whatsapp.customerError.includes('Sandbox')) {
+                tip += '\n\n💡 Tip: To receive WhatsApp alerts in Sandbox mode, you must send "join gentle-river" (or your specific code) to our Twilio number first.';
+              } else if (result.whatsapp.customerError) {
+                tip += `\nError: ${result.whatsapp.customerError}`;
+              }
+              showFormStatus(tip, 'warning');
+              return; // We show warning instead of resetting if WhatsApp was critical, or proceed to reset:
             }
 
             showFormStatus(successMessage, 'success');

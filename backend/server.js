@@ -246,25 +246,19 @@ const upload = multer({
 function formatWhatsAppNumber(rawNumber) {
   if (!rawNumber) return null;
 
-  let cleaned = rawNumber.toString().trim();
-  cleaned = cleaned.replace(/[^0-9+]/g, '');
-
-  if (cleaned.startsWith('+')) {
-    return `whatsapp:${cleaned}`;
-  }
-
-  if (cleaned.startsWith('0')) {
-    cleaned = cleaned.replace(/^0+/, '');
-  }
-
-  if (cleaned.length === 10) {
-    return `whatsapp:+91${cleaned}`;
-  }
-
-  if (cleaned.length === 11 && cleaned.startsWith('1')) {
-    return `whatsapp:+${cleaned}`;
-  }
-
+  // Remove all non-numeric characters except +
+  let cleaned = rawNumber.toString().trim().replace(/[^0-9+]/g, '');
+  
+  // If it already has the prefix, clean it to standard first
+  if (cleaned.startsWith('whatsapp:')) cleaned = cleaned.replace('whatsapp:', '');
+  
+  // If it starts with +, just prepend whatsapp:
+  if (cleaned.startsWith('+')) return `whatsapp:${cleaned}`;
+  
+  // Default to India (+91) if 10 digits provided
+  if (cleaned.length === 10) return `whatsapp:+91${cleaned}`;
+  
+  // Otherwise just prepend + and whatsapp:
   return `whatsapp:+${cleaned}`;
 }
 
@@ -579,11 +573,11 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
     }
 
     const { name, email, phone, subject, message, address, gpay, whatsapp, category } = req.body;
-    
+
     // File is optional - only set path if file was uploaded
     const prescriptionFile = req.file ? req.file.filename : null;
     const prescriptionPath = prescriptionFile ? `/uploads/${prescriptionFile}` : null;
-
+    
     // Ensure required fields
     if (!name || !email || !phone || !message) {
       console.warn('⚠️ Missing required fields in submission');
@@ -596,7 +590,6 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
     `, [name, email, phone, subject, message, address, gpay, whatsapp, prescriptionPath, category]);
 
     let twilioStatus = 'not_sent';
-    let twilioError = null;
     let twilioOwnerStatus = 'not_sent';
     let twilioCustomerStatus = 'not_sent';
     let twilioOwnerError = null;
@@ -606,18 +599,15 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
     const websiteWhatsappNumber = process.env.WEBSITE_WHATSAPP_NUMBER || whatsapp || '9952930484'; // Consistent with business contact
     const ownerRecipient = formatWhatsAppNumber(websiteWhatsappNumber);
 
-    console.log('\n🔍 WhatsApp Send Debug:');
-    console.log('   Twilio Client Ready:', !!twilioClient);
-    console.log('   WhatsApp From Number:', whatsappFrom);
-    console.log('   Website Owner WhatsApp Number:', websiteWhatsappNumber);
-    console.log('   Owner Recipient:', ownerRecipient);
-    console.log('   Customer Phone:', phone);
-    
     if (twilioClient && whatsappFrom) {
-      try {
-        const customerRecipient = formatWhatsAppNumber(phone);
-        console.log('   Formatted Customer Recipient:', customerRecipient);
+      console.log('\n🔍 WhatsApp Send Debug:');
+      console.log('   From Number:', whatsappFrom);
+      console.log('   Owner Recipient:', ownerRecipient);
+      console.log('   Customer Phone:', phone);
 
+      const customerRecipient = formatWhatsAppNumber(phone);
+
+      try {
         if (!customerRecipient) {
           throw new Error('Failed to format customer phone number: ' + phone);
         }
@@ -635,42 +625,40 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
           body: ownerBody
         });
         twilioOwnerStatus = 'sent';
-        console.log('✅ Owner WhatsApp notification sent:', ownerMessage.sid);
       } catch (error) {
         twilioOwnerStatus = 'failed';
-        twilioOwnerError = error.message;
-        console.error('❌ Owner WhatsApp notification failed:');
-        console.error('   Error:', error.message);
-        console.error('   Code:', error.code);
-        console.error('   Status:', error.status);
+        // Check for common Sandbox error: "The number ... is not opted in"
+        if (error.code === 63003) {
+          twilioOwnerError = "Sandbox Opt-in Required: The owner number hasn't joined the Twilio Sandbox.";
+        } else {
+          twilioOwnerError = error.message;
+        }
+        console.error('❌ Owner WhatsApp failed:', twilioOwnerError);
       }
 
       try {
-        const customerRecipient = formatWhatsAppNumber(phone);
         const customerBody = `Hello ${name}, thank you for contacting Siva Medicals. We have received your ${category.replace(/_/g, ' ')} request and will respond shortly. Reply to this message if you need immediate help.`;
 
-        console.log('   Sending customer WhatsApp confirmation...');
         const customerMessage = await twilioClient.messages.create({
           from: `whatsapp:${whatsappFrom.replace(/^whatsapp:/, '')}`,
           to: customerRecipient,
           body: customerBody
         });
         twilioCustomerStatus = 'sent';
-        console.log('✅ Customer WhatsApp confirmation sent:', customerMessage.sid);
       } catch (error) {
         twilioCustomerStatus = 'failed';
-        twilioCustomerError = error.message;
-        console.error('❌ Customer WhatsApp confirmation failed:');
-        console.error('   Error:', error.message);
-        console.error('   Code:', error.code);
-        console.error('   Status:', error.status);
+        if (error.code === 63003) {
+          twilioCustomerError = "Sandbox Opt-in Required: Your phone number hasn't joined the Twilio Sandbox.";
+        } else {
+          twilioCustomerError = error.message;
+        }
+        console.error('❌ Customer WhatsApp failed:', twilioCustomerError);
       }
 
       if (twilioOwnerStatus === 'sent' || twilioCustomerStatus === 'sent') {
         twilioStatus = 'sent';
       } else {
         twilioStatus = 'failed';
-        twilioError = twilioOwnerError || twilioCustomerError;
       }
     } else {
       console.warn('⚠️  WhatsApp sending skipped - Client or number not configured');
