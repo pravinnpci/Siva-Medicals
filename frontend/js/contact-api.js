@@ -145,14 +145,20 @@ document.addEventListener('DOMContentLoaded', function() {
       const EC2_PUBLIC_IP = '18.60.246.115';
 
       // If running on S3, we must point to the EC2 Public IP
-      if (window.location.hostname.includes('amazonaws.com')) {
+      const isS3 = window.location.hostname.includes('amazonaws.com') || 
+                   window.location.hostname.includes('s3.ap-south-2.amazonaws.com');
+
+      if (isS3) {
         // Force redirect to HTTP if on HTTPS to avoid mixed-content blocks
-        if (window.location.protocol === 'https:') {
+        // S3 Website endpoints work best on HTTP when the API is not yet SSL-secured
+        if (window.location.protocol === 'https:' && !window.location.hostname.includes('s3-website')) {
           console.log('🔄 HTTPS S3 detected. Switching to HTTP for API compatibility...');
           // Use regional domain specifically to ensure the endpoint remains valid
           const httpUrl = window.location.href.replace('https:', 'http:'); 
-          window.location.href = httpUrl;
-          return;
+          if (httpUrl !== window.location.href) {
+            window.location.href = httpUrl;
+            return;
+          }
         }
         apiUrl = `http://${EC2_PUBLIC_IP}/api/contact`;
         console.log(`📡 S3 environment detected. Using absolute API endpoint: ${apiUrl}`);

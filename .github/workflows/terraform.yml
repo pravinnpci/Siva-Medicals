@@ -278,11 +278,22 @@ jobs:
             # 1. Cleanup: Fix fstab potential corruption from bad loop device detection (systemd/snap conflict)
             sudo sed -i '/\/dev\/loop/d' /etc/fstab
             
-            # 2. Persistence: Ensure EBS Volume is mounted for Postgres
-            # Find the NVMe device that isn't the root disk (nvme0n1)
-            DEVICE=$(lsblk -dno NAME | grep -v "nvme0n1" | head -n 1)
+            # 2. Persistence: Ensure EBS Volume is mounted for Postgres (Robust Detection)
+            echo "Searching for EBS volume..."
+            DEVICE=""
+            for i in {1..12}; do
+                # Find disk that is not the root disk (nvme0n1) and is a whole disk (not a partition)
+                DEVICE=$(lsblk -dpno NAME,TYPE | grep disk | grep -v "nvme0n1" | awk '{print $1}' | head -n 1)
+                if [ -n "$DEVICE" ]; then
+                    echo "Found EBS volume at $DEVICE"
+                    break
+                fi
+                echo "Waiting for EBS volume to be attached... (Attempt $i/12)"
+                sleep 5
+            done
+
             if [ -n "$DEVICE" ]; then
-                DEVICE_PATH="/dev/$DEVICE"
+                DEVICE_PATH="$DEVICE"
                 echo "Found EBS volume at $DEVICE_PATH"
                 if ! grep -q "/mnt/postgres_data" /etc/fstab; then
                     echo "Configuring EBS volume mount for $DEVICE_PATH"
@@ -295,9 +306,18 @@ jobs:
                 if ! mountpoint -q /mnt/postgres_data; then
                     sudo mount /mnt/postgres_data || true
                 fi
+                
+                if ! mountpoint -q /mnt/postgres_data; then
+                    echo "❌ ERROR: EBS Volume failed to mount at /mnt/postgres_data"
+                    exit 1
+                fi
+
                 # Ensure permissions for Postgres (UID 999)
                 sudo chown -R 999:999 /mnt/postgres_data
                 sudo chmod 700 /mnt/postgres_data
+            else
+                echo "❌ ERROR: EBS Data Volume not found. Check AWS console attachment status."
+                exit 1
             fi
 
             # 2. Configuration: Ensure S3 mount entry exists in /etc/fstab for persistence

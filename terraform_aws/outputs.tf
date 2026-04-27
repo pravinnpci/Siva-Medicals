@@ -5,7 +5,7 @@ output "instance_public_ip" {
 
 output "s3_website_url" {
   description = "URL of the S3 static website"
-  value       = "http://${aws_s3_bucket.data_bucket.bucket_regional_domain_name}/frontend/index.html"
+  value       = "http://${aws_s3_bucket_website_configuration.data_bucket_web.website_endpoint}/frontend/index.html"
 }
 
 output "backend_health_url" {
