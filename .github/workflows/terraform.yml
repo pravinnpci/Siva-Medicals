@@ -301,6 +301,7 @@ jobs:
                     if ! sudo blkid $DEVICE_PATH; then
                         sudo mkfs -t ext4 $DEVICE_PATH
                     fi
+                    sudo e2label $DEVICE_PATH pg_data
                     echo "$DEVICE_PATH /mnt/postgres_data ext4 defaults,nofail 0 2" | sudo tee -a /etc/fstab
                 fi
                 if ! mountpoint -q /mnt/postgres_data; then
@@ -312,6 +313,8 @@ jobs:
                     exit 1
                 fi
 
+                # Create a marker file to verify mount persistence
+                sudo touch /mnt/postgres_data/.ebs_mounted
                 # Ensure permissions for Postgres (UID 999)
                 sudo chown -R 999:999 /mnt/postgres_data
                 sudo chmod 700 /mnt/postgres_data
@@ -343,13 +346,6 @@ jobs:
 
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             BUCKET_NAME="${{ env.BUCKET_NAME }}"
-            
-            echo "--- Forced Cleanup of Resources ---"
-            sudo /usr/local/bin/kubectl delete statefulset postgres siva-medicals --ignore-not-found || true
-            
-            echo "Cleaning up old storage resources..."
-            sudo /usr/local/bin/kubectl delete pvc postgres-pvc --ignore-not-found || true
-            sudo /usr/local/bin/kubectl delete pv postgres-pv --ignore-not-found || true
             
             echo "Ensuring volume permissions for Postgres..."
             sudo mkdir -p /mnt/postgres_data
@@ -395,6 +391,11 @@ jobs:
               template:
                 metadata: { labels: { app: postgres } }
                 spec:
+                  initContainers:
+                  - name: wait-for-mount
+                    image: busybox
+                    command: ['sh', '-c', 'until [ -f /var/lib/postgresql/data/.ebs_mounted ]; do echo waiting for ebs mount; sleep 2; done']
+                    volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
                   containers:
                   - name: postgres
                     image: postgres:14

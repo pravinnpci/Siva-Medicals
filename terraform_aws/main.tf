@@ -192,9 +192,11 @@ resource "aws_instance" "app_server" {
       if ! blkid $DEVICE; then
         mkfs -t ext4 $DEVICE
       fi
+      e2label $DEVICE pg_data
       mkdir -p /mnt/postgres_data
       mount $DEVICE /mnt/postgres_data
-      echo "$DEVICE /mnt/postgres_data ext4 defaults,nofail 0 2" >> /etc/fstab
+      echo "LABEL=pg_data /mnt/postgres_data ext4 defaults,nofail 0 2" >> /etc/fstab
+      touch /mnt/postgres_data/.ebs_mounted
       chown -R 999:999 /mnt/postgres_data
       chmod 700 /mnt/postgres_data
     fi
@@ -272,6 +274,11 @@ resource "aws_instance" "app_server" {
       template:
         metadata: { labels: { app: postgres } }
         spec:
+          initContainers:
+          - name: wait-for-mount
+            image: busybox
+            command: ['sh', '-c', 'until [ -f /var/lib/postgresql/data/.ebs_mounted ]; do echo waiting for ebs mount; sleep 2; done']
+            volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
           containers:
           - name: postgres
             image: postgres:14
@@ -384,6 +391,9 @@ resource "aws_ebs_volume" "data_volume" {
   size              = 10
   tags = {
     Name = "${var.project_name}-DataVolume"
+  }
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
