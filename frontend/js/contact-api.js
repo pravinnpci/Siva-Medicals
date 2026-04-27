@@ -125,13 +125,26 @@ document.addEventListener('DOMContentLoaded', function() {
       const originalText = submitBtn.innerHTML;
       submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Sending...';
       submitBtn.disabled = true;
-      
+
       // Determine API URL based on environment
       let apiUrl = '/api/contact';
       const EC2_PUBLIC_IP = '18.60.246.115';
 
-      // If running on S3 (Amazon regional domain), we must point to the EC2 Public IP for POST support
+      // If running on S3 (Amazon regional domain), we must point to the EC2 Public IP
       if (window.location.hostname.includes('amazonaws.com')) {
+        if (window.location.protocol === 'https:') {
+          const mixedContentError = '⚠️ Security Block: You are using HTTPS on S3, but the API requires HTTP.\n\nPlease visit the official site at: http://18.60.246.115/frontend/contact.html';
+          console.error(mixedContentError);
+          showFormStatus(mixedContentError, 'warning');
+          submitBtn.innerHTML = originalText;
+          submitBtn.disabled = false;
+          
+          const fixConfirm = confirm('This page is running on HTTPS, but our API uses HTTP. Your browser will block the submission.\n\nWould you like to switch to the official site at http://18.60.246.115/ instead?');
+          if (fixConfirm) {
+            window.location.href = 'http://18.60.246.115/frontend/contact.html';
+          }
+          return;
+        }
         apiUrl = `http://${EC2_PUBLIC_IP}/api/contact`;
         console.log(`📡 S3 environment detected. Using absolute API endpoint: ${apiUrl}`);
       }
@@ -174,6 +187,12 @@ document.addEventListener('DOMContentLoaded', function() {
           throw new Error(`Server responded with status: ${response.status}`);
         }
       } catch (error) {
+        let errorMessage = 'Unable to send message right now. Please try again or contact us directly.';
+        
+        if (error.name === 'TypeError' && window.location.protocol === 'https:') {
+          errorMessage = 'The submission was blocked by your browser security. Please access the site using the Public IP: http://18.60.246.115/frontend/contact.html';
+        }
+        
         console.error('Form submission error:', error);
         showFormStatus('Unable to send message right now. Please try again or contact us directly at WhatsApp +91 99529 30484.', 'danger');
 
