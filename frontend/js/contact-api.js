@@ -144,19 +144,13 @@ document.addEventListener('DOMContentLoaded', function() {
       let apiUrl = '/api/contact';
       const EC2_PUBLIC_IP = '18.60.246.115';
 
-      // If running on S3 (Amazon regional domain), we must point to the EC2 Public IP
+      // If running on S3, we must point to the EC2 Public IP
       if (window.location.hostname.includes('amazonaws.com')) {
+        // Force redirect to HTTP if on HTTPS to avoid mixed-content blocks
         if (window.location.protocol === 'https:') {
-          const mixedContentError = '⚠️ Security Block: Your browser blocks submissions from HTTPS to HTTP.\n\nRedirecting you to the official site...';
-          console.error(mixedContentError);
-          showFormStatus(mixedContentError, 'warning');
-          submitBtn.innerHTML = originalText;
-          submitBtn.disabled = false;
-          
-          const fixConfirm = confirm('This page is running on HTTPS, but our API uses HTTP. Your browser will block the submission.\n\nWould you like to switch to the official site at http://18.60.246.115/ instead?');
-          if (fixConfirm) {
-            window.location.href = 'http://18.60.246.115/frontend/contact.html';
-          }
+          console.log('🔄 HTTPS S3 detected. Redirecting to HTTP to enable API POST...');
+          const httpUrl = window.location.href.replace('https:', 'http:');
+          window.location.href = httpUrl;
           return;
         }
         apiUrl = `http://${EC2_PUBLIC_IP}/api/contact`;

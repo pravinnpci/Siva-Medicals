@@ -309,10 +309,6 @@ jobs:
             sudo /usr/local/bin/kubectl delete pvc postgres-pvc --ignore-not-found || true
             sudo /usr/local/bin/kubectl delete pv postgres-pv --ignore-not-found || true
             
-            # Force Postgres to re-initialize by clearing the host directory
-            echo "Wiping old database files to force re-initialization..."
-            sudo find /mnt/postgres_data -mindepth 1 -delete || true
-            
             echo "Ensuring volume permissions for Postgres..."
             sudo mkdir -p /mnt/postgres_data
             sudo chown -R 999:999 /mnt/postgres_data
@@ -470,11 +466,27 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+            echo "--- Persistence Verification: Checking Mounts ---"
+            
+            # Check EBS Volume (Postgres)
+            if df -h | grep -q "/mnt/postgres_data"; then
+              echo "✅ EBS Volume is correctly mounted for Database."
+            else
+              echo "❌ ERROR: EBS Volume NOT found at /mnt/postgres_data"
+              exit 1
+            fi
+
+            # Check S3 Mount (Uploads)
+            if mountpoint -q /mnt/s3_uploads; then
+              echo "✅ S3 Bucket is correctly mounted for File Storage."
+            else
+              echo "❌ ERROR: S3 Bucket NOT mounted at /mnt/s3_uploads"
+              exit 1
+            fi
+
             echo "--- Internal Connectivity Check: Backend -> Postgres ---"
-            # Attempt to reach DB from within the siva-medicals pod
             for i in {1..10}; do
               echo "Testing connection to db:5432 (Attempt $i/10)..."
-              # Use Node.js to test connection since 'nc' is missing in the image
               if sudo /usr/local/bin/kubectl exec statefulset/siva-medicals -- node -e "const net = require('net'); const c = net.createConnection({port: 5432, host: 'db', timeout: 2000}, () => { console.log('Connected'); process.exit(0); }); c.on('error', (e) => { console.error(e.message); process.exit(1); }); c.on('timeout', () => { console.error('Timeout'); process.exit(1); });"; then
                 echo "✅ Internal K8s network verified: backend can reach db."
                 exit 0
