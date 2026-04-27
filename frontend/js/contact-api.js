@@ -37,13 +37,26 @@ document.addEventListener('DOMContentLoaded', function() {
       let isValid = true;
       const errors = [];
 
-      const name = document.getElementById('name').value.trim();
-      const email = document.getElementById('email').value.trim();
-      const phone = document.getElementById('phone').value.trim();
-      const category = document.getElementById('category').value.trim();
-      const address = document.getElementById('address').value.trim();
-      const message = document.getElementById('message').value.trim();
-      const prescriptionFileInput = document.getElementById('prescriptionFile').files[0];
+      const getVal = (id) => {
+        const el = document.getElementById(id);
+        return el ? el.value.trim() : null;
+      };
+
+      const name = getVal('name');
+      const email = getVal('email');
+      const phone = getVal('phone');
+      const category = getVal('category');
+      const address = getVal('address');
+      const message = getVal('message');
+      
+      const prescriptionFileEl = document.getElementById('prescriptionFile');
+      const prescriptionFileInput = prescriptionFileEl && prescriptionFileEl.files ? prescriptionFileEl.files[0] : null;
+
+      if (name === null || email === null || phone === null || category === null || address === null || message === null) {
+        console.error('Form fields missing from DOM. Check IDs: name, email, phone, category, address, message');
+        showFormStatus('Form Error: One or more fields are missing in the page. Please refresh or contact support.', 'danger');
+        return;
+      }
 
       if (name === '') {
         errors.push('Please enter your full name');

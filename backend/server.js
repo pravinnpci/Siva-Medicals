@@ -200,8 +200,11 @@ app.use(session({
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Standardize uploads directory to the root of the app (mapped to /app/uploads in K8s)
-const UPLOADS_DIR = path.resolve(process.cwd(), 'uploads');
+// Resolve uploads directory.
+// In Kubernetes, we mount the S3 bucket at /app/uploads. In local dev, it is ./uploads.
+const UPLOADS_DIR = fs.existsSync('/app/uploads')
+  ? '/app/uploads'
+  : path.resolve(process.cwd(), 'uploads');
 
 // Static files
 app.use(express.static(path.join(__dirname, 'public')));
