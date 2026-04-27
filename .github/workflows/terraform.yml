@@ -278,6 +278,28 @@ jobs:
             # 1. Cleanup: Fix fstab potential corruption from bad loop device detection (systemd/snap conflict)
             sudo sed -i '/\/dev\/loop/d' /etc/fstab
             
+            # 2. Persistence: Ensure EBS Volume is mounted for Postgres
+            # Find the NVMe device that isn't the root disk (nvme0n1)
+            DEVICE=$(lsblk -dno NAME | grep -v "nvme0n1" | head -n 1)
+            if [ -n "$DEVICE" ]; then
+                DEVICE_PATH="/dev/$DEVICE"
+                echo "Found EBS volume at $DEVICE_PATH"
+                if ! grep -q "/mnt/postgres_data" /etc/fstab; then
+                    echo "Configuring EBS volume mount for $DEVICE_PATH"
+                    sudo mkdir -p /mnt/postgres_data
+                    if ! sudo blkid $DEVICE_PATH; then
+                        sudo mkfs -t ext4 $DEVICE_PATH
+                    fi
+                    echo "$DEVICE_PATH /mnt/postgres_data ext4 defaults,nofail 0 2" | sudo tee -a /etc/fstab
+                fi
+                if ! mountpoint -q /mnt/postgres_data; then
+                    sudo mount /mnt/postgres_data || true
+                fi
+                # Ensure permissions for Postgres (UID 999)
+                sudo chown -R 999:999 /mnt/postgres_data
+                sudo chmod 700 /mnt/postgres_data
+            fi
+
             # 2. Configuration: Ensure S3 mount entry exists in /etc/fstab for persistence
             sudo mkdir -p /mnt/s3_uploads
             sudo sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf || true
@@ -414,16 +436,30 @@ jobs:
                     index index.html;
                     try_files $uri $uri/ /index.html;
                 }
+            
+            location /api {
+                # CORS support for S3 cross-origin POST requests
+                add_header 'Access-Control-Allow-Origin' '*' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range' always;
+                
+                if ($request_method = 'OPTIONS') {
+                    add_header 'Access-Control-Max-Age' 1728000;
+                    add_header 'Content-Type' 'text/plain; charset=utf-8';
+                    add_header 'Content-Length' 0;
+                    return 204;
+                }
+
+                proxy_pass http://localhost:30001;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+
                 location /uploads {
                     alias /mnt/s3_uploads/backend/uploads/;
                     sendfile off;
-                }
-                location /api {
-                    proxy_pass http://localhost:30001;
-                    proxy_set_header Host $host;
-                    proxy_set_header X-Real-IP $remote_addr;
-                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                    proxy_set_header X-Forwarded-Proto $scheme;
                 }
                 location /admin {
                     proxy_pass http://localhost:30001;

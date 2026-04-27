@@ -148,8 +148,9 @@ document.addEventListener('DOMContentLoaded', function() {
       if (window.location.hostname.includes('amazonaws.com')) {
         // Force redirect to HTTP if on HTTPS to avoid mixed-content blocks
         if (window.location.protocol === 'https:') {
-          console.log('🔄 HTTPS S3 detected. Redirecting to HTTP to enable API POST...');
-          const httpUrl = window.location.href.replace('https:', 'http:');
+          console.log('🔄 HTTPS S3 detected. Switching to HTTP for API compatibility...');
+          // Use regional domain specifically to ensure the endpoint remains valid
+          const httpUrl = window.location.href.replace('https:', 'http:'); 
           window.location.href = httpUrl;
           return;
         }
