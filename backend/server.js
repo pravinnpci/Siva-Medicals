@@ -598,10 +598,11 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
     const whatsappFrom = process.env.TWILIO_WHATSAPP_FROM || process.env.TWILIO_WHATSAPP_NUMBER;
     const websiteWhatsappNumber = process.env.WEBSITE_WHATSAPP_NUMBER || whatsapp || '9952930484'; // Consistent with business contact
     const ownerRecipient = formatWhatsAppNumber(websiteWhatsappNumber);
+    const sender = formatWhatsAppNumber(whatsappFrom);
 
     if (twilioClient && whatsappFrom) {
       console.log('\n🔍 WhatsApp Send Debug:');
-      console.log('   From Number:', whatsappFrom);
+      console.log('   Formatted Sender (From):', sender);
       console.log('   Owner Recipient:', ownerRecipient);
       console.log('   Customer Phone:', phone);
 
@@ -620,7 +621,7 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
 
         console.log('   Sending owner WhatsApp notification...');
         const ownerMessage = await twilioClient.messages.create({
-          from: `whatsapp:${whatsappFrom.replace(/^whatsapp:/, '')}`,
+          from: sender,
           to: ownerRecipient,
           body: ownerBody
         });
@@ -640,7 +641,7 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
         const customerBody = `Hello ${name}, thank you for contacting Siva Medicals. We have received your ${category.replace(/_/g, ' ')} request and will respond shortly. Reply to this message if you need immediate help.`;
 
         const customerMessage = await twilioClient.messages.create({
-          from: `whatsapp:${whatsappFrom.replace(/^whatsapp:/, '')}`,
+          from: sender,
           to: customerRecipient,
           body: customerBody
         });

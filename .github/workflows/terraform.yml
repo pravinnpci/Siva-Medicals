@@ -399,8 +399,8 @@ jobs:
                     - { name: DB_PASSWORD, value: "admin123" }
                     - { name: TWILIO_ACCOUNT_SID, value: "${{ secrets.TWILIO_ACCOUNT_SID }}" }
                     - { name: TWILIO_AUTH_TOKEN, value: "${{ secrets.TWILIO_AUTH_TOKEN }}" }
-                    - { name: TWILIO_WHATSAPP_NUMBER, value: "+16626893955" }
-                    - { name: WEBSITE_WHATSAPP_NUMBER, value: "9245464648" }
+                    - { name: TWILIO_WHATSAPP_NUMBER, value: "${{ secrets.TWILIO_WHATSAPP_NUMBER }}" }
+                    - { name: WEBSITE_WHATSAPP_NUMBER, value: "${{ secrets.WEBSITE_WHATSAPP_NUMBER }}" }
                     volumeMounts: [{ name: uploads, mountPath: /app/uploads }]
                   volumes: [{ name: uploads, hostPath: { path: /mnt/s3_uploads/backend/uploads } }]
             K8S
