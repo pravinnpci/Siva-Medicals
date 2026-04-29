@@ -178,6 +178,9 @@ if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
   console.warn('WhatsApp features will be disabled');
 }
 
+// Trust the first proxy (Nginx) to correctly detect protocol and host
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -617,7 +620,14 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
         }
 
         const customerBody = `Hello ${name}, this is Siva Medicals. We have received your ${category.replace(/_/g, ' ')} request and will respond shortly. Reply to this message if you need immediate help.`;
-        const ownerBody = `Siva Medicals - New website contact request:\nName: ${name}\nEmail: ${email}\nPhone: ${phone}\nCategory: ${category.replace(/_/g, ' ')}\nAddress: ${address}\nMessage: ${message}\nPrescription: ${prescriptionPath ? 'Yes' : 'No'}${prescriptionPath ? `\nPrescription Link: ${req.protocol}://${req.get('host')}${prescriptionPath}` : ''}`;
+        const ownerBody = `*Siva Medicals - New Contact Request*\n\n` +
+          `*Name:* ${name}\n` +
+          `*Email:* ${email}\n` +
+          `*Phone:* ${phone}\n` +
+          `*Category:* ${category.replace(/_/g, ' ')}\n` +
+          `*Address:* ${address}\n` +
+          `*Message:* ${message}\n\n` +
+          `${prescriptionPath ? `*Prescription Link:*\n${req.protocol}://${req.get('host')}${prescriptionPath}` : '*Prescription:* None'}`;
 
         console.log('   Sending owner WhatsApp notification...');
         const ownerMessage = await twilioClient.messages.create({
