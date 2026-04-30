@@ -142,15 +142,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
       // Determine API URL based on environment
       const EC2_PUBLIC_IP = '18.60.246.115';
-      // Construct the API URL using the current protocol and the EC2 Public IP
-      // This ensures the frontend attempts to use HTTPS if the S3 bucket is HTTPS.
-      let apiUrl = `${window.location.protocol}//${EC2_PUBLIC_IP}/api/contact`;
-      
+      // Use absolute HTTP URL to reach the EC2 backend.
+      // Note: Access the S3 site via HTTP (Static Website Hosting URL) to avoid Mixed Content blocks.
+      let apiUrl = `http://${EC2_PUBLIC_IP}/api/contact`;
 
       try {
-        // If apiUrl is absolute (starts with http), use it as is; otherwise prepend origin
-        const fullUrl = apiUrl.startsWith('http') ? apiUrl : `${window.location.origin}${apiUrl}`;
-        console.log(`🚀 Submitting form to: ${fullUrl}`);
+        console.log(`🚀 Submitting form to: ${apiUrl}`);
 
         const response = await fetch(apiUrl, {
           method: 'POST',
