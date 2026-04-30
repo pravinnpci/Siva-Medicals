@@ -388,9 +388,10 @@ app.get('/admin/dashboard', requireAuth, async (req, res) => {
   }
 });
 
-// --- Contact Submissions Routes ---
+// ========================================
+// CONTACT SUBMISSIONS ADMIN ROUTES
+// ========================================
 
-// View all contacts
 app.get('/admin/contacts', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -404,11 +405,10 @@ app.get('/admin/contacts', requireAuth, async (req, res) => {
   }
 });
 
-// Delete contact submission (Placed before status update for clarity)
 app.delete('/admin/contacts/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    console.log(`🗑️ Deleting contact ID: ${id}`);
+    console.log(`[API] Processing DELETE request for contact ID: ${id}`);
     
     const result = await pool.query('DELETE FROM contact_submissions WHERE id = $1', [id]);
     
@@ -423,7 +423,6 @@ app.delete('/admin/contacts/:id', requireAuth, async (req, res) => {
   }
 });
 
-// Update contact status
 app.post('/admin/contacts/:id/status', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;

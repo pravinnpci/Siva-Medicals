@@ -13,6 +13,18 @@ const PORT = process.env.PORT || 3001;
 // In-memory storage for testing (when PostgreSQL is not available)
 let contacts = [
   {
+    id: 30,
+    name: 'Docker Test User',
+    email: 'docker@test.com',
+    phone: '9952930484',
+    subject: 'INQUIRY',
+    message: 'Test message for deletion verification.',
+    address: '123 Docker Lane',
+    submitted_at: new Date(),
+    status: 'unread',
+    category: 'inquiry'
+  },
+  {
     id: 27,
     name: 'Test User',
     email: 'test@example.com',
@@ -167,13 +179,13 @@ app.get('/admin/contacts', requireAuth, (req, res) => {
 // Delete contact submission
 app.delete('/admin/contacts/:id', requireAuth, (req, res) => {
   const contactId = parseInt(req.params.id, 10);
-  console.log(`🗑️ [Test Mode] DELETE request for contact ID: ${contactId}`);
+  console.log(`🗑️ [Test Mode] Incoming DELETE request for ID: ${contactId}`);
   
   const index = contacts.findIndex(c => c.id === contactId);
   
   if (index === -1) {
-    console.log(`❌ Contact ${contactId} not found in memory`);
-    return res.status(404).json({ error: 'Contact not found' });
+    console.warn(`❌ [Test Mode] Contact ${contactId} not found. Available IDs:`, contacts.map(c => c.id));
+    return res.status(404).json({ success: false, error: 'Contact not found' });
   }
   
   contacts.splice(index, 1);
@@ -289,6 +301,15 @@ app.delete('/admin/files/:id', requireAuth, (req, res) => {
 app.use(['/admin', '/api'], (req, res) => {
   res.status(404).json({ 
     error: 'Route not found', 
+    path: req.originalUrl, 
+    method: req.method 
+  });
+});
+
+// JSON 404 handler for admin/api routes to prevent HTML responses in test mode
+app.use(['/admin', '/api'], (req, res) => {
+  res.status(404).json({ 
+    error: 'Route not found in test mode', 
     path: req.originalUrl, 
     method: req.method 
   });

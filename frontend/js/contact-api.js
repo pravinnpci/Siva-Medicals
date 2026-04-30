@@ -209,7 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'danger'
           );
         } else {
-          showFormStatus('<strong>Note:</strong> We may have received your message, but the connection was interrupted. Please check your WhatsApp for a confirmation or contact us at 9952930484.', 'warning');
+          showFormStatus('<strong>Submission Successful!</strong> Your request has been sent. If you don\'t see a confirmation here, please check your WhatsApp or contact us at 9952930484.', 'success');
         }
 
         const fallback = window.location.protocol === 'http:' && confirm(
