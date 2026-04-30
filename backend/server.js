@@ -9,7 +9,6 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const twilio = require('twilio');
-const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -182,7 +181,6 @@ if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
 app.set('trust proxy', 1);
 
 // Middleware
-app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

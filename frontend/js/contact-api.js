@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿// ========================================
+﻿﻿// ========================================
 // CONTACT FORM API SUBMISSION
 // ========================================
 
@@ -162,15 +162,18 @@ document.addEventListener('DOMContentLoaded', function() {
         if (response.ok) {
           const result = await response.json();
           if (result.success) {
-            let successMessage = 'Message sent successfully! We will contact you soon.';
             if (result.whatsapp && result.whatsapp.enabled) {
               if (result.whatsapp.customerStatus === 'sent' && result.whatsapp.ownerStatus === 'sent') {
-                successMessage = 'Your request has been sent and both you and our team have been notified on WhatsApp.';
+                showFormStatus('Your request has been sent and both you and our team have been notified on WhatsApp.', 'success');
               } else if (result.whatsapp.ownerStatus === 'sent' && result.whatsapp.customerStatus !== 'sent') {
-                successMessage = 'Your request has been received and our team has been notified. We tried to send you a WhatsApp confirmation too.';
+                showFormStatus('Your request has been received and our team has been notified. We tried to send you a WhatsApp confirmation too.', 'success');
               } else if (result.whatsapp.customerStatus === 'sent' && result.whatsapp.ownerStatus !== 'sent') {
-                successMessage = 'Your request has been received and a WhatsApp confirmation was sent to you.';
+                showFormStatus('Your request has been received and a WhatsApp confirmation was sent to you.', 'success');
+              } else {
+                showFormStatus('Message sent successfully! We will contact you soon.', 'success');
               }
+            } else {
+              showFormStatus('Message sent successfully! We will contact you soon.', 'success');
             }
 
             if (result.whatsapp && result.whatsapp.status === 'failed') {
@@ -183,7 +186,6 @@ document.addEventListener('DOMContentLoaded', function() {
               showFormStatus(tip, 'warning');
             }
 
-            showFormStatus(successMessage, 'success');
             document.getElementById('contactForm').reset();
             document.querySelectorAll('.is-valid, .is-invalid').forEach(el => {
               el.classList.remove('is-valid', 'is-invalid');
@@ -232,7 +234,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function showFormStatus(message, type = 'success') {
   const statusBox = document.getElementById('formMessage');
   if (!statusBox) return;
-  statusBox.innerText = message;
+  statusBox.innerHTML = message;
   statusBox.className = `alert alert-${type}`;
   statusBox.classList.remove('d-none');
 }
