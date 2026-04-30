@@ -200,7 +200,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Handle Mixed Content issues (HTTPS S3 -> HTTP EC2 block)
         if (window.location.protocol === 'https:') {
           // Construct the HTTP Static Website Hosting URL for S3
-          const websiteUrl = `http://${S3_BUCKET}.s3-website.${REGION}.amazonaws.com/frontend/contact.html`;
+          const websiteUrl = `http://${S3_BUCKET}.s3-website.${REGION}.amazonaws.com/contact.html`;
           
           showFormStatus(
             `<strong>Browser Security Block:</strong> This form cannot be submitted from a secure (HTTPS) S3 link to an insecure (HTTP) backend. <br><br>` +

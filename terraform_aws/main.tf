@@ -209,7 +209,7 @@ resource "aws_instance" "app_server" {
     # Hard mount verification. Refuse to create local directories to avoid "EC2 local storage" fallback.
     for i in {1..12}; do
        mount /mnt/s3_uploads && if mountpoint -q /mnt/s3_uploads; then 
-          mkdir -p /mnt/s3_uploads/frontend /mnt/s3_uploads/backend/uploads
+          mkdir -p /mnt/s3_uploads/backend/uploads
           chmod -R 777 /mnt/s3_uploads
           chown -R ubuntu:ubuntu /mnt/s3_uploads
           break 
@@ -342,7 +342,7 @@ resource "aws_instance" "app_server" {
         resolver 8.8.8.8 1.1.1.1 valid=30s;
 
         location / {
-            root /mnt/s3_uploads/frontend;
+            root /mnt/s3_uploads;
             index index.html;
             try_files $uri $uri/ /index.html;
         }
