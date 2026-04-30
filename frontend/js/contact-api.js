@@ -140,14 +140,17 @@ document.addEventListener('DOMContentLoaded', function() {
       submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Sending...';
       submitBtn.disabled = true;
 
-      // Determine API URL based on environment
+      // Backend API URL Configuration
       const EC2_PUBLIC_IP = '18.60.246.115';
-      // Use absolute HTTP URL to reach the EC2 backend.
-      // Note: Access the S3 site via HTTP (Static Website Hosting URL) to avoid Mixed Content blocks.
-      let apiUrl = `http://${EC2_PUBLIC_IP}/api/contact`;
+      
+      // Use relative path if on EC2, otherwise use absolute HTTP URL for S3/Other hosts
+      // Important: Use the HTTP Website Endpoint of S3 to avoid Mixed Content blocks
+      const apiUrl = window.location.hostname === EC2_PUBLIC_IP 
+        ? '/api/contact' 
+        : `http://${EC2_PUBLIC_IP}/api/contact`;
 
       try {
-        console.log(`🚀 Submitting form to: ${apiUrl}`);
+        console.log(`🚀 Attempting submission to: ${apiUrl} from host: ${window.location.hostname}`);
 
         const response = await fetch(apiUrl, {
           method: 'POST',
@@ -176,7 +179,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 tip += `\nError: ${result.whatsapp.customerError}`;
               }
               showFormStatus(tip, 'warning');
-              return; // We show warning instead of resetting if WhatsApp was critical, or proceed to reset:
             }
 
             showFormStatus(successMessage, 'success');
@@ -191,14 +193,14 @@ document.addEventListener('DOMContentLoaded', function() {
           throw new Error(`Server responded with status: ${response.status}`);
         }
       } catch (error) {
-        let errorMessage = 'Unable to send message right now. Please try again or contact us directly.';
-        
-        if (error.name === 'TypeError' && window.location.protocol === 'https:') {
-          errorMessage = 'The submission was blocked by your browser security (Mixed Content). Ensure your EC2 instance is configured for HTTPS, or access the site via HTTP.';
-        }
-        
         console.error('Form submission error:', error);
-        showFormStatus('Unable to send message right now. Please try again or contact us directly at WhatsApp +91 99529 30484.', 'danger');
+        
+        // Handle Mixed Content issues for S3 HTTPS users
+        if (window.location.protocol === 'https:' && apiUrl.startsWith('http:')) {
+          showFormStatus('Security Error: Browser blocked submission because S3 is HTTPS and API is HTTP. Please use the "Static Website Hosting" link (HTTP) provided by S3.', 'danger');
+        } else {
+          showFormStatus('Unable to send message. Please check your connection or contact us via WhatsApp +91 99529 30484.', 'danger');
+        }
 
         const fallback = confirm(
           'Unable to connect to server. Would you like to contact us directly instead?\n\n' +
