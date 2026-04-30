@@ -195,18 +195,21 @@ document.addEventListener('DOMContentLoaded', function() {
       } catch (error) {
         console.error('Form submission error:', error);
         
-        // Handle Mixed Content issues for S3 HTTPS users
-        if (window.location.protocol === 'https:' && apiUrl.startsWith('http:')) {
-          showFormStatus('Security Error: Browser blocked submission because S3 is HTTPS and API is HTTP. Please use the "Static Website Hosting" link (HTTP) provided by S3.', 'danger');
+        // Handle Mixed Content issues (HTTPS -> HTTP block)
+        if (window.location.protocol === 'https:') {
+          const websiteUrl = `http://${S3_BUCKET}.s3-website.${REGION}.amazonaws.com/frontend/contact.html`;
+          showFormStatus(
+            `<strong>Security Block:</strong> Your browser blocked this request because S3 is currently using HTTPS. <br><br>` +
+            `<a href="${websiteUrl}" class="btn btn-warning btn-sm">Click here to open the working HTTP version</a>`, 
+            'danger'
+          );
         } else {
-          showFormStatus('Unable to send message. Please check your connection or contact us via WhatsApp +91 99529 30484.', 'danger');
+          showFormStatus('Unable to connect to server. Please check your internet or contact us directly via WhatsApp.', 'danger');
         }
 
-        const fallback = confirm(
+        const fallback = window.location.protocol === 'http:' && confirm(
           'Unable to connect to server. Would you like to contact us directly instead?\n\n' +
-          '📞 Phone: 9952930484\n' +
-          '� GPay: 9097732213\n' +
-          '� Address: 1/47, Perumal Kovil Street, Madampakkam\n\n' +
+          '📞 WhatsApp: 9952930484\n\n' +
           'Click OK to call now, or Cancel to try again later.'
         );
 
