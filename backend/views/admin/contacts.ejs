@@ -155,6 +155,9 @@
                                         <a href="https://wa.me/<%= contact.phone.replace(/[^0-9]/g, '') %>" target="_blank" class="btn btn-success btn-sm ms-2">
                                             <i class="fab fa-whatsapp me-1"></i> Respond
                                         </a>
+                                        <button class="btn btn-outline-danger btn-sm delete-contact-btn" data-id="<%= contact.id %>">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -342,6 +345,37 @@
 
             // Store original value
             select.dataset.originalValue = select.value;
+        });
+
+        // Handle Contact Deletion
+        document.querySelectorAll('.delete-contact-btn').forEach(button => {
+            button.addEventListener('click', async function(e) {
+                e.stopPropagation(); // Prevent toggling the card
+                const contactId = this.dataset.id;
+                
+                if (confirm('Are you sure you want to delete this submission? This action cannot be undone.')) {
+                    try {
+                        const response = await fetch(`/admin/contacts/${contactId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        const result = await response.json();
+                        if (response.ok && result.success) {
+                            const card = document.querySelector(`.contact-card[data-id="${contactId}"]`);
+                            if (card) card.remove();
+                            alert('Submission deleted successfully');
+                        } else {
+                            alert('Failed to delete: ' + (result.error || 'Unknown error'));
+                        }
+                    } catch (error) {
+                        console.error('Delete error:', error);
+                        alert('Error deleting submission');
+                    }
+                }
+            });
         });
     </script>
 </body>
