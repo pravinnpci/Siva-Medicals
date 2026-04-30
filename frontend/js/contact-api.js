@@ -1,4 +1,4 @@
-﻿﻿﻿﻿// ========================================
+﻿﻿﻿﻿﻿﻿// ========================================
 // CONTACT FORM API SUBMISSION
 // ========================================
 
@@ -141,19 +141,11 @@ document.addEventListener('DOMContentLoaded', function() {
       submitBtn.disabled = true;
 
       // Determine API URL based on environment
-      let apiUrl = '/api/contact';
       const EC2_PUBLIC_IP = '18.60.246.115';
-
-      // If running on S3, redirect to the EC2 IP site. 
-      // This is the only way to bypass "Mixed Content" blocks on HTTPS S3 pages.
-      const isS3 = window.location.hostname.includes('amazonaws.com') || 
-                   window.location.hostname.includes('s3.ap-south-2.amazonaws.com');
-
-      if (isS3) {
-        console.log('📡 S3 environment detected. Redirecting to official IP site for reliable submission...');
-        window.location.href = `http://${EC2_PUBLIC_IP}/contact.html`;
-        return;
-      }
+      // Construct the API URL using the current protocol and the EC2 Public IP
+      // This ensures the frontend attempts to use HTTPS if the S3 bucket is HTTPS.
+      let apiUrl = `${window.location.protocol}//${EC2_PUBLIC_IP}/api/contact`;
+      
 
       try {
         // If apiUrl is absolute (starts with http), use it as is; otherwise prepend origin
@@ -205,7 +197,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let errorMessage = 'Unable to send message right now. Please try again or contact us directly.';
         
         if (error.name === 'TypeError' && window.location.protocol === 'https:') {
-          errorMessage = 'The submission was blocked by your browser security. Please access the site using the Public IP: http://18.60.246.115/frontend/contact.html';
+          errorMessage = 'The submission was blocked by your browser security (Mixed Content). Ensure your EC2 instance is configured for HTTPS, or access the site via HTTP.';
         }
         
         console.error('Form submission error:', error);

@@ -346,16 +346,27 @@ resource "aws_instance" "app_server" {
             index index.html;
             try_files $uri $uri/ /index.html;
         }
-        location /uploads {
-            alias /mnt/s3_uploads/backend/uploads/;
-            sendfile off;
-        }
-        location /api {
+        location /ader 'Access-Control-Allow-Headers' 'Authorization,DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range' always;
+            
+            if ($request_method = 'OPTIONS') {
+                add_header 'Access-Control-Allow-Origin' '*' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization,DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range' always;
+                add_header 'Access-Control-Max-Age' 1728000;
+                add_header 'Content-Type' 'text/plain; charset=utf-8';
+                add_header 'Content-Length' 0;
+                return 204;
+            }
+
             proxy_pass http://localhost:30001;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
         }
+        location /uploads {
+            alias /mnt/s3_uploads/backend/uploads/;
+            sendfile off;
         location /admin {
             proxy_pass http://localhost:30001;
             proxy_set_header Host $host;
