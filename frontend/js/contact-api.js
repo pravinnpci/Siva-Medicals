@@ -140,10 +140,12 @@ document.addEventListener('DOMContentLoaded', function() {
       submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Sending...';
       submitBtn.disabled = true;
 
-      // Backend API URL Configuration
+      // --- API & ENVIRONMENT CONFIGURATION ---
       const EC2_PUBLIC_IP = '18.60.246.115';
+      const S3_BUCKET = 'siva-medicals-data-hyderabad-ap-south-2';
+      const REGION = 'ap-south-2';
       
-      // Use relative path if on EC2, otherwise use absolute HTTP URL for S3/Other hosts
+      // Use relative path if on EC2 (same host), otherwise use absolute HTTP URL for S3/Other hosts
       // Important: Use the HTTP Website Endpoint of S3 to avoid Mixed Content blocks
       const apiUrl = window.location.hostname === EC2_PUBLIC_IP 
         ? '/api/contact' 
@@ -195,11 +197,14 @@ document.addEventListener('DOMContentLoaded', function() {
       } catch (error) {
         console.error('Form submission error:', error);
         
-        // Handle Mixed Content issues (HTTPS -> HTTP block)
+        // Handle Mixed Content issues (HTTPS S3 -> HTTP EC2 block)
         if (window.location.protocol === 'https:') {
+          // Construct the HTTP Static Website Hosting URL for S3
           const websiteUrl = `http://${S3_BUCKET}.s3-website.${REGION}.amazonaws.com/frontend/contact.html`;
+          
           showFormStatus(
-            `<strong>Security Block:</strong> Your browser blocked this request because S3 is currently using HTTPS. <br><br>` +
+            `<strong>Browser Security Block:</strong> This form cannot be submitted from a secure (HTTPS) S3 link to an insecure (HTTP) backend. <br><br>` +
+            `Please use the official website link to submit your request: <br><br>` +
             `<a href="${websiteUrl}" class="btn btn-warning btn-sm">Click here to open the working HTTP version</a>`, 
             'danger'
           );
