@@ -826,14 +826,18 @@ app.delete('/admin/files/:id', requireAuth, async (req, res) => {
   }
 });
 
-// Final Catch-all 404 handler to prevent default Express HTML error pages
-app.use((req, res) => {
-  console.log(`⚠️ 404 Not Found: ${req.method} ${req.originalUrl}`);
-  res.status(404).json({ 
-    error: 'Endpoint not found on this server', 
-    path: req.originalUrl, 
-    method: req.method 
-  });
+// Final Catch-all 404 handler
+// Ensures that admin and api routes always return JSON to prevent SyntaxErrors in the browser
+app.use((req, res, next) => {
+  if (req.path.startsWith('/admin/') || req.path.startsWith('/api/')) {
+    console.log(`⚠️ 404 JSON Catch-all reached: ${req.method} ${req.originalUrl}`);
+    return res.status(404).json({ 
+      error: 'Route not found on server', 
+      path: req.originalUrl, 
+      method: req.method 
+    });
+  }
+  res.status(404).send('Not Found');
 });
 
 // Error handling
