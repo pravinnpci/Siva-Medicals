@@ -179,13 +179,13 @@ app.get('/admin/contacts', requireAuth, (req, res) => {
 // Delete contact submission
 app.delete('/admin/contacts/:id', requireAuth, (req, res) => {
   const contactId = parseInt(req.params.id, 10);
-  console.log(`🗑️ [Test Mode] Incoming DELETE request for ID: ${contactId}`);
+  console.log(`🗑️ [Test Mode] Processing DELETE for Contact ID: ${contactId}`);
   
   const index = contacts.findIndex(c => c.id === contactId);
   
   if (index === -1) {
-    console.warn(`❌ [Test Mode] Contact ${contactId} not found. Available IDs:`, contacts.map(c => c.id));
-    return res.status(404).json({ success: false, error: 'Contact not found' });
+    console.warn(`❌ [Test Mode] Contact ${contactId} not found. IDs in memory:`, contacts.map(c => c.id));
+    return res.status(404).json({ success: false, error: `Contact ${contactId} not found` });
   }
   
   contacts.splice(index, 1);
@@ -297,19 +297,11 @@ app.delete('/admin/files/:id', requireAuth, (req, res) => {
   }
 });
 
-// JSON 404 handler for admin/api routes
-app.use(['/admin', '/api'], (req, res) => {
+// Catch-all 404 handler for ALL routes to prevent HTML error pages
+app.use((req, res) => {
+  console.log(`⚠️ 404 Catch-all reached for: ${req.method} ${req.originalUrl}`);
   res.status(404).json({ 
-    error: 'Route not found', 
-    path: req.originalUrl, 
-    method: req.method 
-  });
-});
-
-// JSON 404 handler for admin/api routes to prevent HTML responses in test mode
-app.use(['/admin', '/api'], (req, res) => {
-  res.status(404).json({ 
-    error: 'Route not found in test mode', 
+    error: 'Route not found on server', 
     path: req.originalUrl, 
     method: req.method 
   });

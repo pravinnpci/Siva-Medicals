@@ -203,13 +203,13 @@ document.addEventListener('DOMContentLoaded', function() {
           const websiteUrl = `http://${S3_BUCKET}.s3-website.${REGION}.amazonaws.com/contact.html`;
           
           showFormStatus(
-            `<strong>Browser Security Block:</strong> This form cannot be submitted from a secure (HTTPS) S3 link to an insecure (HTTP) backend. <br><br>` +
-            `Please use the official website link to submit your request: <br><br>` +
-            `<a href="${websiteUrl}" class="btn btn-warning btn-sm">Click here to open the working HTTP version</a>`, 
+            `<strong>Action Required:</strong> You are accessing the site via a secure link (HTTPS), but the server requires an insecure connection (HTTP). <br><br>` +
+            `Please click the button below to switch to the working version of the site: <br><br>` +
+            `<a href="${websiteUrl}" class="btn btn-warning btn-dark fw-bold">Open Working Website Version</a>`, 
             'danger'
           );
         } else {
-          showFormStatus('<strong>Submission Successful!</strong> Your request has been sent. If you don\'t see a confirmation here, please check your WhatsApp or contact us at 9952930484.', 'success');
+          showFormStatus('<strong>Note:</strong> We may have received your data, but the response was blocked. Please check your WhatsApp for a confirmation or contact us at 9952930484.', 'warning');
         }
 
         const fallback = window.location.protocol === 'http:' && confirm(

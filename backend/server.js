@@ -826,10 +826,11 @@ app.delete('/admin/files/:id', requireAuth, async (req, res) => {
   }
 });
 
-// JSON 404 handler for admin/api routes to prevent HTML responses
-app.use(['/admin', '/api'], (req, res) => {
+// Final Catch-all 404 handler to prevent default Express HTML error pages
+app.use((req, res) => {
+  console.log(`⚠️ 404 Not Found: ${req.method} ${req.originalUrl}`);
   res.status(404).json({ 
-    error: 'Route not found', 
+    error: 'Endpoint not found on this server', 
     path: req.originalUrl, 
     method: req.method 
   });
