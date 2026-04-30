@@ -409,6 +409,20 @@ app.post('/admin/contacts/:id/status', requireAuth, async (req, res) => {
   }
 });
 
+// Delete contact submission
+app.delete('/admin/contacts/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM contact_submissions WHERE id = $1', [id]);
+    res.json({ success: true, message: 'Contact submission deleted successfully' });
+  } catch (error) {
+    console.error('Delete contact error:', error);
+    res.status(500).json({ error: 'Failed to delete contact submission' });
+  }
+});
+
+
+
 // File uploads management
 app.get('/admin/files', requireAuth, async (req, res) => {
   try {

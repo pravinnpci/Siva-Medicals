@@ -162,29 +162,27 @@ document.addEventListener('DOMContentLoaded', function() {
         if (response.ok) {
           const result = await response.json();
           if (result.success) {
-            if (result.whatsapp && result.whatsapp.enabled) {
-              if (result.whatsapp.customerStatus === 'sent' && result.whatsapp.ownerStatus === 'sent') {
-                showFormStatus('Your request has been sent and both you and our team have been notified on WhatsApp.', 'success');
-              } else if (result.whatsapp.ownerStatus === 'sent' && result.whatsapp.customerStatus !== 'sent') {
-                showFormStatus('Your request has been received and our team has been notified. We tried to send you a WhatsApp confirmation too.', 'success');
-              } else if (result.whatsapp.customerStatus === 'sent' && result.whatsapp.ownerStatus !== 'sent') {
-                showFormStatus('Your request has been received and a WhatsApp confirmation was sent to you.', 'success');
-              } else {
-                showFormStatus('Message sent successfully! We will contact you soon.', 'success');
-              }
-            } else {
-              showFormStatus('Message sent successfully! We will contact you soon.', 'success');
-            }
+            let finalMessage = 'Message sent successfully! We will contact you soon.';
+            let messageType = 'success';
 
-            if (result.whatsapp && result.whatsapp.status === 'failed') {
-              let tip = 'Note: Message sent, but WhatsApp notifications failed.';
-              if (result.whatsapp.customerError && result.whatsapp.customerError.includes('Sandbox')) {
-                tip += '\n\n💡 Tip: To receive WhatsApp alerts in Sandbox mode, you must send "join gentle-river" (or your specific code) to our Twilio number first.';
-              } else if (result.whatsapp.customerError) {
-                tip += `\nError: ${result.whatsapp.customerError}`;
+            if (result.whatsapp && result.whatsapp.enabled) {
+              if (result.whatsapp.status === 'failed') {
+                finalMessage = 'Note: Message sent, but WhatsApp notifications failed.';
+                messageType = 'warning';
+                if (result.whatsapp.customerError && result.whatsapp.customerError.includes('Sandbox')) {
+                  finalMessage += '\n\n💡 Tip: To receive WhatsApp alerts in Sandbox mode, you must send "join gentle-river" (or your specific code) to our Twilio number first.';
+                } else if (result.whatsapp.customerError) {
+                  finalMessage += `\nError: ${result.whatsapp.customerError}`;
+                }
+              } else if (result.whatsapp.customerStatus === 'sent' && result.whatsapp.ownerStatus === 'sent') {
+                finalMessage = 'Your request has been sent and both you and our team have been notified on WhatsApp.';
+              } else if (result.whatsapp.ownerStatus === 'sent' && result.whatsapp.customerStatus !== 'sent') {
+                finalMessage = 'Your request has been received and our team has been notified. We tried to send you a WhatsApp confirmation too.';
+              } else if (result.whatsapp.customerStatus === 'sent' && result.whatsapp.ownerStatus !== 'sent') {
+                finalMessage = 'Your request has been received and a WhatsApp confirmation was sent to you.';
               }
-              showFormStatus(tip, 'warning');
             }
+            showFormStatus(finalMessage, messageType);
 
             document.getElementById('contactForm').reset();
             document.querySelectorAll('.is-valid, .is-invalid').forEach(el => {
