@@ -9,6 +9,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const twilio = require('twilio');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -181,9 +182,6 @@ if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
 app.set('trust proxy', 1);
 
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
 // Session configuration
 app.use(session({
   store: pool ? new PgSession({
@@ -196,6 +194,16 @@ app.use(session({
   saveUninitialized: false,
   cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
 }));
+
+app.use(cors()); // Add CORS support to allow S3 frontend communication
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Request logger for debugging admin routes
+app.use('/admin', (req, res, next) => {
+  console.log(`[Admin Access] ${req.method} ${req.originalUrl} - Session: ${req.session ? (req.session.userId ? 'Active' : 'None') : 'No Session Middleware'}`);
+  next();
+});
 
 // Set view engine
 app.set('view engine', 'ejs');
@@ -267,6 +275,10 @@ function formatWhatsAppNumber(rawNumber) {
 function requireAuth(req, res, next) {
   if (req.session.userId) {
     return next();
+  }
+  // Return JSON for API/AJAX calls instead of redirecting to HTML login page
+  if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json')) || req.method !== 'GET') {
+    return res.status(401).json({ error: 'Session expired. Please login again.' });
   }
   res.redirect('/admin/login');
 }
@@ -376,7 +388,9 @@ app.get('/admin/dashboard', requireAuth, async (req, res) => {
   }
 });
 
-// Contact submissions
+// --- Contact Submissions Routes ---
+
+// View all contacts
 app.get('/admin/contacts', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -387,6 +401,25 @@ app.get('/admin/contacts', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Contacts error:', error);
     res.status(500).send('Error loading contacts');
+  }
+});
+
+// Delete contact submission (Placed before status update for clarity)
+app.delete('/admin/contacts/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`🗑️ Deleting contact ID: ${id}`);
+    
+    const result = await pool.query('DELETE FROM contact_submissions WHERE id = $1', [id]);
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Contact submission not found' });
+    }
+
+    res.json({ success: true, message: 'Contact submission deleted successfully' });
+  } catch (error) {
+    console.error('Delete contact error:', error);
+    res.status(500).json({ error: 'Failed to delete contact submission' });
   }
 });
 
@@ -406,18 +439,6 @@ app.post('/admin/contacts/:id/status', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Status update error:', error);
     res.status(500).json({ error: 'Failed to update status' });
-  }
-});
-
-// Delete contact submission
-app.delete('/admin/contacts/:id', requireAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    await pool.query('DELETE FROM contact_submissions WHERE id = $1', [id]);
-    res.json({ success: true, message: 'Contact submission deleted successfully' });
-  } catch (error) {
-    console.error('Delete contact error:', error);
-    res.status(500).json({ error: 'Failed to delete contact submission' });
   }
 });
 
@@ -791,7 +812,7 @@ app.delete('/admin/files/:id', requireAuth, async (req, res) => {
     const file = result.rows[0];
 
     // Resolve filesystem path from web path for deletion
-    const fullPath = path.join(__dirname, 'uploads', path.basename(file.upload_path));
+    const fullPath = path.join(UPLOADS_DIR, path.basename(file.upload_path));
     if (fs.existsSync(fullPath)) {
       fs.unlinkSync(fullPath);
     }
@@ -804,6 +825,15 @@ app.delete('/admin/files/:id', requireAuth, async (req, res) => {
     console.error('Delete file error:', error);
     res.status(500).json({ error: 'Failed to delete file' });
   }
+});
+
+// JSON 404 handler for admin/api routes to prevent HTML responses
+app.use(['/admin', '/api'], (req, res) => {
+  res.status(404).json({ 
+    error: 'Route not found', 
+    path: req.originalUrl, 
+    method: req.method 
+  });
 });
 
 // Error handling

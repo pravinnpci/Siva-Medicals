@@ -348,11 +348,7 @@ resource "aws_instance" "app_server" {
         }
 
         location /api {
-            # Enhanced CORS Configuration for S3 static site communication
-            add_header 'Access-Control-Allow-Origin' '*' always;
-            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
-            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
-            add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range' always;
+            # CORS headers are handled by the Node.js backend
 
             if ($request_method = 'OPTIONS') {
                 add_header 'Access-Control-Allow-Origin' '*' always;

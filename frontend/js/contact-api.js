@@ -209,7 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'danger'
           );
         } else {
-          showFormStatus('Unable to connect to server. Please check your internet or contact us directly via WhatsApp.', 'danger');
+          showFormStatus('<strong>Note:</strong> We may have received your message, but the connection was interrupted. Please check your WhatsApp for a confirmation or contact us at 9952930484.', 'warning');
         }
 
         const fallback = window.location.protocol === 'http:' && confirm(

@@ -11,7 +11,21 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // In-memory storage for testing (when PostgreSQL is not available)
-let contacts = [];
+let contacts = [
+  {
+    id: 27,
+    name: 'Test User',
+    email: 'test@example.com',
+    phone: '9952930484',
+    subject: 'INQUIRY',
+    message: 'This is a test submission for deletion testing.',
+    address: '123 Test Street',
+    submitted_at: new Date(),
+    status: 'unread',
+    category: 'inquiry'
+  }
+];
+
 let files = [];
 let users = [
   {
@@ -27,9 +41,15 @@ let users = [
 ];
 
 // Middleware
-app.use(cors());
+app.use(cors()); // Ensure cors is active
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Request logger for debugging admin routes
+app.use('/admin', (req, res, next) => {
+  console.log(`[Test Admin] ${req.method} ${req.originalUrl}`);
+  next();
+});
 
 // Simple session configuration (in-memory for testing)
 app.use(session({
@@ -74,6 +94,9 @@ const upload = multer({ storage: storage });
 function requireAuth(req, res, next) {
   if (req.session.userId) {
     return next();
+  }
+  if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json')) || req.method !== 'GET') {
+    return res.status(401).json({ error: 'Session expired. Please login again.' });
   }
   res.redirect('/admin/login');
 }
@@ -139,6 +162,22 @@ app.get('/admin/dashboard', requireAuth, (req, res) => {
 // Contact submissions
 app.get('/admin/contacts', requireAuth, (req, res) => {
   res.render('admin/contacts', { contacts, user: req.session });
+});
+
+// Delete contact submission
+app.delete('/admin/contacts/:id', requireAuth, (req, res) => {
+  const contactId = parseInt(req.params.id, 10);
+  console.log(`🗑️ [Test Mode] DELETE request for contact ID: ${contactId}`);
+  
+  const index = contacts.findIndex(c => c.id === contactId);
+  
+  if (index === -1) {
+    console.log(`❌ Contact ${contactId} not found in memory`);
+    return res.status(404).json({ error: 'Contact not found' });
+  }
+  
+  contacts.splice(index, 1);
+  res.json({ success: true, message: 'Contact submission deleted successfully' });
 });
 
 // File uploads management
@@ -244,6 +283,15 @@ app.delete('/admin/files/:id', requireAuth, (req, res) => {
     console.error('Delete file error:', error);
     res.status(500).json({ error: 'Failed to delete file' });
   }
+});
+
+// JSON 404 handler for admin/api routes
+app.use(['/admin', '/api'], (req, res) => {
+  res.status(404).json({ 
+    error: 'Route not found', 
+    path: req.originalUrl, 
+    method: req.method 
+  });
 });
 
 // Start server

@@ -358,17 +358,30 @@
                         const response = await fetch(`/admin/contacts/${contactId}`, {
                             method: 'DELETE',
                             headers: {
-                                'Content-Type': 'application/json'
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
                             }
                         });
                         
-                        const result = await response.json();
-                        if (response.ok && result.success) {
-                            const card = document.querySelector(`.contact-card[data-id="${contactId}"]`);
+                        let result;
+                        const contentType = response.headers.get("content-type");
+                        try {
+                            if (contentType && contentType.indexOf("application/json") !== -1) {
+                                result = await response.json();
+                            } else {
+                                console.error('Server returned non-JSON response:', await response.text());
+                            }
+                        } catch (parseError) {
+                            console.error('Failed to parse JSON response');
+                        }
+
+                        if (response.ok && result && result.success) {
+                            // Safer removal using the data-id attribute on the card
+                            const card = document.querySelector(`.contact-card[data-id="${contactId}"]`) || this.closest('.contact-card');
                             if (card) card.remove();
                             alert('Submission deleted successfully');
                         } else {
-                            alert('Failed to delete: ' + (result.error || 'Unknown error'));
+                            alert('Failed to delete: ' + (result?.error || 'Server error ' + response.status));
                         }
                     } catch (error) {
                         console.error('Delete error:', error);
