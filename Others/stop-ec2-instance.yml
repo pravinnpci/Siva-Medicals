@@ -1,0 +1,53 @@
+name: "Manual: Stop EC2 App Server"
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for stopping the EC2 instance'
+        required: false
+        default: 'Manual shutdown via GitHub Actions'
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: "ap-south-2"
+  PROJECT_NAME: "SIVAMedicals" # This tag is used in your terraform_aws configuration
+
+jobs:
+  stop-app-server:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Find EC2 Instance ID
+        id: find_instance
+        run: |
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=${{ env.PROJECT_NAME }}-AppServer" \
+                      "Name=instance-state-name,Values=running,stopped,pending" \
+            --query "Reservations[].Instances[].InstanceId | [0]" \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+          
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ]; then
+            echo "No running or stopped EC2 instance found with tag Name=${{ env.PROJECT_NAME }}-AppServer."
+            exit 1
+          fi
+          echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_OUTPUT
+
+      - name: Stop EC2 Instance
+        if: success() && steps.find_instance.outputs.INSTANCE_ID != ''
+        run: |
+          echo "Stopping EC2 instance ${{ steps.find_instance.outputs.INSTANCE_ID }}..."
+          aws ec2 stop-instances --instance-ids ${{ steps.find_instance.outputs.INSTANCE_ID }} --region ${{ env.AWS_REGION }}
+          echo "EC2 instance stop request sent. Reason: ${{ github.event.inputs.reason }}"
