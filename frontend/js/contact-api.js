@@ -1,4 +1,4 @@
-﻿﻿// ========================================
+﻿﻿﻿﻿// ========================================
 // CONTACT FORM API SUBMISSION
 // ========================================
 
@@ -147,7 +147,7 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // Use relative path if on EC2 (same host), otherwise use absolute HTTP URL for S3/Other hosts
       // Important: Use the HTTP Website Endpoint of S3 to avoid Mixed Content blocks
-      const apiUrl = window.location.hostname === EC2_PUBLIC_IP 
+      const apiUrl = (window.location.hostname === EC2_PUBLIC_IP || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
         ? '/api/contact' 
         : `http://${EC2_PUBLIC_IP}/api/contact`;
 
