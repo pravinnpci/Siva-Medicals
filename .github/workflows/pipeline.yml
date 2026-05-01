@@ -1,4 +1,4 @@
-name: Siva Medicals CI/CD
+name: Siva Medicals CI/CD from pipeline.yml
 
 on:
   push:
