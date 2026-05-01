@@ -70,9 +70,9 @@ describe('Siva Medicals API Tests', () => {
         .send({
           name: 'Test User',
           email: 'test@sivamedicals.com',
-          phone: '+919876543210',
+          phone: '+919245464648',
           message: 'This is an automated test message.',
-          category: 'General_Inquiry'
+          category: 'Without Prescription'
         });
       
       // Expect 200 if DB is up, or 503 if DB is temporarily unavailable
