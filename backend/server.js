@@ -306,8 +306,8 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(postData),
           'Accept': 'application/json',
-          'Origin': 'https://sivamedicals.com',
-          'Referer': 'https://sivamedicals.com/contact.html',
+          'Origin': 'https://sivamedicals.vercel.app',
+          'Referer': 'https://sivamedicals.vercel.app/contact.html',
           'User-Agent': 'Mozilla/5.0'
         }
       };
@@ -316,7 +316,7 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
         let resData = '';
         fsRes.on('data', (chunk) => { resData += chunk; });
         fsRes.on('end', () => {
-          console.log(`Owner notification delivered to ${companyEmail}`);
+          console.log(`Owner notification delivered to ${companyEmail}:`, resData);
         });
       });
       fsReq.on('error', (e) => console.warn('FormSubmit note:', e.message));
@@ -360,7 +360,7 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
           headers: {
             'Content-Type': 'application/json',
             'Content-Length': Buffer.byteLength(ejsPayload),
-            'Origin': 'https://sivamedicals.com'
+            'Origin': 'https://sivamedicals.vercel.app'
           }
         };
 
@@ -484,16 +484,59 @@ app.delete('/admin/contacts/:id', requireAuth, async (req, res) => {
   }
 });
 
-// Admin Files List (Scans Disk + DB)
+// Admin Files List (Scans Supabase DB + Disk)
 app.get('/admin/files', requireAuth, async (req, res) => {
   try {
     let allFiles = [];
     const seenFiles = new Set();
 
+    // 1. Fetch all uploaded prescriptions from Supabase DB
+    if (pool) {
+      const dbFilesRes = await pool.query(`
+        SELECT id, filename, original_name, size, uploaded_at, upload_path 
+        FROM file_uploads 
+        ORDER BY uploaded_at DESC
+      `).catch(() => ({ rows: [] }));
+
+      dbFilesRes.rows.forEach(r => {
+        seenFiles.add(r.filename);
+        allFiles.push({
+          id: r.id,
+          filename: r.filename,
+          original_name: r.original_name || r.filename,
+          size: r.size || 0,
+          uploaded_at: r.uploaded_at
+        });
+      });
+
+      // Also get any prescriptions from contact submissions
+      const contactPrescriptions = await pool.query(`
+        SELECT id, prescription_path, name, submitted_at 
+        FROM contact_submissions 
+        WHERE prescription_path IS NOT NULL AND prescription_path != ''
+        ORDER BY submitted_at DESC
+      `).catch(() => ({ rows: [] }));
+
+      contactPrescriptions.rows.forEach(c => {
+        const fname = path.basename(c.prescription_path);
+        if (!seenFiles.has(fname)) {
+          seenFiles.add(fname);
+          allFiles.push({
+            id: c.id,
+            filename: fname,
+            original_name: `Prescription - ${c.name}`,
+            size: 150 * 1024,
+            uploaded_at: c.submitted_at
+          });
+        }
+      });
+    }
+
+    // 2. Also scan disk folder if exists
     if (fs.existsSync(UPLOADS_DIR)) {
       const diskFiles = fs.readdirSync(UPLOADS_DIR);
       diskFiles.forEach(f => {
-        if (!f.startsWith('.')) {
+        if (!f.startsWith('.') && !seenFiles.has(f)) {
           const fullP = path.join(UPLOADS_DIR, f);
           try {
             const stat = fs.statSync(fullP);
@@ -538,7 +581,7 @@ app.post('/admin/files/delete-by-name', requireAuth, async (req, res) => {
       await pool.query('UPDATE contact_submissions SET prescription_path = NULL WHERE prescription_path LIKE $1', [`%${safeName}%`]).catch(() => {});
     }
 
-    res.json({ success: true, message: 'File permanently deleted from storage.' });
+    res.json({ success: true, message: 'File permanently deleted from storage and database.' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
