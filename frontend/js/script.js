@@ -43,7 +43,7 @@ function initBackToTop() {
 }
 
 // ========================================
-// 2. LIVE DYNAMIC SITE SETTINGS LOADER
+// 2. LIVE DYNAMIC SITE & SOCIAL SETTINGS LOADER
 // ========================================
 
 async function loadLiveSiteSettings() {
@@ -83,8 +83,8 @@ async function loadLiveSiteSettings() {
       });
       const cleanWa = s.company_whatsapp.replace(/[^0-9]/g, '');
       const waLink = cleanWa.length === 10 ? 'https://wa.me/91' + cleanWa : 'https://wa.me/' + cleanWa;
-      document.querySelectorAll('.site-whatsapp-btn').forEach(el => {
-        el.href = waLink;
+      document.querySelectorAll('.site-whatsapp-btn, .social-whatsapp').forEach(el => {
+        el.href = s.social_whatsapp || waLink;
       });
     }
 
@@ -108,6 +108,54 @@ async function loadLiveSiteSettings() {
         el.textContent = s.company_hours;
       });
     }
+
+    // Dynamic Social Media Links
+    if (s.social_facebook) {
+      document.querySelectorAll('.social-facebook, a[href*="facebook.com"]').forEach(el => {
+        el.href = s.social_facebook;
+        el.target = '_blank';
+      });
+    }
+
+    if (s.social_instagram) {
+      document.querySelectorAll('.social-instagram, a[href*="instagram.com"]').forEach(el => {
+        el.href = s.social_instagram;
+        el.target = '_blank';
+      });
+    }
+
+    if (s.social_twitter) {
+      document.querySelectorAll('.social-twitter, a[href*="twitter.com"], a[href*="x.com"]').forEach(el => {
+        el.href = s.social_twitter;
+        el.target = '_blank';
+      });
+    }
+
+    // Also match social icon parents in footer
+    document.querySelectorAll('.footer i.fa-facebook-f, .footer i.fa-facebook, footer i.fa-facebook-f, footer i.fa-facebook').forEach(icon => {
+      const parentLink = icon.closest('a');
+      if (parentLink && s.social_facebook) { parentLink.href = s.social_facebook; parentLink.target = '_blank'; }
+    });
+
+    document.querySelectorAll('.footer i.fa-instagram, footer i.fa-instagram').forEach(icon => {
+      const parentLink = icon.closest('a');
+      if (parentLink && s.social_instagram) { parentLink.href = s.social_instagram; parentLink.target = '_blank'; }
+    });
+
+    document.querySelectorAll('.footer i.fa-whatsapp, footer i.fa-whatsapp').forEach(icon => {
+      const parentLink = icon.closest('a');
+      if (parentLink) { 
+        const cleanWa = (s.company_whatsapp || '9952930484').replace(/[^0-9]/g, '');
+        parentLink.href = s.social_whatsapp || (cleanWa.length === 10 ? 'https://wa.me/91' + cleanWa : 'https://wa.me/' + cleanWa);
+        parentLink.target = '_blank';
+      }
+    });
+
+    document.querySelectorAll('.footer i.fa-twitter, footer i.fa-twitter').forEach(icon => {
+      const parentLink = icon.closest('a');
+      if (parentLink && s.social_twitter) { parentLink.href = s.social_twitter; parentLink.target = '_blank'; }
+    });
+
   } catch (e) {
     console.debug('Site settings note:', e.message);
   }

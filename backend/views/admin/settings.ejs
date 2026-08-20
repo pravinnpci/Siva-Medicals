@@ -21,38 +21,45 @@
             <div class="col-md-3 col-lg-2 px-0 sidebar">
                 <div class="p-3">
                     <h5 class="text-center mb-4 d-flex align-items-center justify-content-center gap-2">
-                        <img src="/images/Logo- Sivamedical.png" alt="Siva Medicals Logo" style="height:28px; width:auto;">
+                        <img src="/images/Logo-%20Sivamedical.png" alt="Siva Medicals Logo" style="height:28px; width:auto;">
                         Siva Medicals
                     </h5>
-                                        <nav class="nav flex-column gap-1">
-                        <a class="nav-link  d-flex align-items-center" href="/admin/dashboard">
+                    <nav class="nav flex-column gap-1">
+                        <a class="nav-link d-flex align-items-center" href="/admin/dashboard">
                             <i class="fas fa-tachometer-alt me-2" style="width: 20px;"></i> <span>Dashboard</span>
                         </a>
-                        <a class="nav-link  d-flex align-items-center" href="/admin/contacts">
+                        <a class="nav-link d-flex align-items-center" href="/admin/contacts">
                             <i class="fas fa-envelope me-2" style="width: 20px;"></i> <span>Contact Forms</span>
                         </a>
-                        <a class="nav-link  d-flex align-items-center" href="/admin/files">
+                        <a class="nav-link d-flex align-items-center" href="/admin/files">
                             <i class="fas fa-file-upload me-2" style="width: 20px;"></i> <span>File Uploads</span>
                         </a>
-                        <a class="nav-link  d-flex align-items-center" href="/admin/whatsapp">
+                        <a class="nav-link d-flex align-items-center" href="/admin/whatsapp">
                             <i class="fab fa-whatsapp me-2" style="width: 20px;"></i> <span>WhatsApp</span>
                         </a>
                         <a class="nav-link active d-flex align-items-center" href="/admin/settings">
                             <i class="fas fa-cog me-2" style="width: 20px;"></i> <span>Site Settings</span>
                         </a>
                         <% if (user && user.role === 'super_admin') { %>
-                        <a class="nav-link  d-flex align-items-center" href="/admin/users">
+                        <a class="nav-link d-flex align-items-center" href="/admin/users">
                             <i class="fas fa-users me-2" style="width: 20px;"></i> <span>Users</span>
                         </a>
                         <% } %>
                     </nav>
+                </div>
+                <div class="mt-auto p-3">
+                    <form method="POST" action="/admin/logout" class="d-inline">
+                        <button type="submit" class="btn btn-outline-light btn-sm w-100">
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout
+                        </button>
+                    </form>
                 </div>
             </div>
 
             <!-- Main Content -->
             <div class="col-md-9 col-lg-10 ms-sm-auto px-4 py-4">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                    <h1 class="h2"><i class="fas fa-cog text-warning me-2"></i> Company & Contact Settings</h1>
+                    <h1 class="h2"><i class="fas fa-cog text-warning me-2"></i> Company & Social Media Settings</h1>
                     <div class="btn-toolbar mb-2 mb-md-0">
                         <span class="badge bg-success p-2">Live Dynamic Updates</span>
                     </div>
@@ -100,14 +107,7 @@
                                     <label class="form-label fw-bold"><i class="fas fa-wallet text-info me-1"></i> GPay Number</label>
                                     <input type="text" class="form-control" name="company_gpay" value="<%= settings.company_gpay || '9097732213' %>">
                                 </div>
-                            </div>
-                        </div>
 
-                        <!-- Address & Notifications -->
-                        <div class="col-lg-6">
-                            <div class="settings-card">
-                                <h4 class="mb-4 text-primary"><i class="fas fa-map-marked-alt me-2"></i> Pharmacy Location & Alerts</h4>
-                                
                                 <div class="mb-3">
                                     <label class="form-label fw-bold"><i class="fas fa-map-marker-alt text-danger me-1"></i> Store Address</label>
                                     <textarea class="form-control" name="company_address" rows="3" required><%= settings.company_address || '1/47, Perumal Kovil Street, Madampakkam - Guduvancheri, Kanchipuram Dist - 603 202' %></textarea>
@@ -116,6 +116,34 @@
                                 <div class="mb-3">
                                     <label class="form-label fw-bold"><i class="fas fa-clock text-warning me-1"></i> Store Hours</label>
                                     <input type="text" class="form-control" name="company_hours" value="<%= settings.company_hours || 'Mon - Sun, 8 AM - 10 PM' %>">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Social Media Links -->
+                        <div class="col-lg-6">
+                            <div class="settings-card">
+                                <h4 class="mb-4 text-primary"><i class="fas fa-share-alt me-2"></i> Social Media Links (Dynamic)</h4>
+                                <p class="text-muted small">Update your official social links below. These links update automatically on your website footer and contact icons.</p>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold"><i class="fab fa-facebook text-primary me-1"></i> Facebook Profile / Page URL</label>
+                                    <input type="url" class="form-control" name="social_facebook" value="<%= settings.social_facebook || 'https://facebook.com/sivamedicals' %>" placeholder="https://facebook.com/sivamedicals">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold"><i class="fab fa-instagram text-danger me-1"></i> Instagram Profile URL</label>
+                                    <input type="url" class="form-control" name="social_instagram" value="<%= settings.social_instagram || 'https://instagram.com/sivamedicals' %>" placeholder="https://instagram.com/sivamedicals">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold"><i class="fab fa-whatsapp text-success me-1"></i> WhatsApp Direct Link</label>
+                                    <input type="text" class="form-control" name="social_whatsapp" value="<%= settings.social_whatsapp || 'https://wa.me/919952930484' %>" placeholder="https://wa.me/919952930484">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold"><i class="fab fa-twitter text-info me-1"></i> Twitter / X Profile URL</label>
+                                    <input type="url" class="form-control" name="social_twitter" value="<%= settings.social_twitter || 'https://twitter.com/sivamedicals' %>" placeholder="https://twitter.com/sivamedicals">
                                 </div>
 
                                 <hr>

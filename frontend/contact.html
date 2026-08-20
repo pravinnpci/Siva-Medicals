@@ -10,15 +10,31 @@
 </head>
 <body>
 
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="container d-flex justify-content-between align-items-center flex-wrap">
+      <div>
+        <i class="fas fa-phone-alt me-1 text-warning"></i> <a href="tel:9952930484" class="site-phone text-white text-decoration-none">9952930484</a>
+        <span class="mx-2">|</span>
+        <i class="fas fa-envelope me-1 text-warning"></i> <a href="mailto:sapravin46@gmail.com" class="site-email text-white text-decoration-none">sapravin46@gmail.com</a>
+      </div>
+      <div>
+        <i class="fas fa-clock me-1 text-warning"></i> <span class="site-hours">Mon - Sun: 8:00 AM - 10:00 PM</span>
+      </div>
+    </div>
+  </div>
+
   <!-- NAVBAR -->
-  <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+  <nav class="navbar navbar-expand-lg sticky-top">
     <div class="container">
-      <a class="navbar-brand d-flex align-items-center gap-2" href="index.html">
-        <img src="images/Logo-%20Sivamedical.png" alt="Siva Medicals Logo" class="site-logo" style="height:38px; width:auto;">
-        <span class="brand-text">Siva Medicals</span>
+      <a class="navbar-brand d-flex align-items-center" href="index.html">
+        <img src="images/Logo-%20Sivamedical.png" alt="Siva Medicals Logo" style="height: 38px; width: auto;" class="me-2">
+        <span>Siva Medicals</span>
       </a>
-      <button class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navmenu"></button>
-      <div class="collapse navbar-collapse" id="navmenu">
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="mainNav">
         <ul class="navbar-nav ms-auto">
           <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
           <li class="nav-item"><a class="nav-link" href="about.html">About</a></li>
@@ -30,146 +46,108 @@
     </div>
   </nav>
 
-  <!-- CONTACT SECTION -->
-  <section class="section">
+  <!-- PAGE HEADER -->
+  <section class="page-header py-5 bg-dark text-white text-center">
     <div class="container">
-      <h2 class="text-center mb-5">Reach Us</h2>
-      
-      <div class="row g-4 mb-5">
-        <!-- Phone Card -->
-        <div class="col-md-6 col-lg-3">
-          <div class="card text-center h-100 shadow-sm border-0">
-            <div class="card-body p-4">
-              <i class="fas fa-phone-alt fa-3x text-primary mb-3"></i>
-              <h5 class="fw-bold">Phone</h5>
-              <p class="fs-6 mb-2"><strong class="site-phone">9952930484</strong></p>
-              <p class="text-muted small">Call us anytime during store hours</p>
-              <a href="tel:9952930484" class="btn btn-gold btn-sm mt-2 site-phone-link">Call Now</a>
-            </div>
-          </div>
-        </div>
+      <h1 class="fw-bold">Contact Siva Medicals</h1>
+      <p class="lead mb-0">Order medicines, upload prescriptions, or reach out to our pharmacy team.</p>
+    </div>
+  </section>
 
-        <!-- Email Card -->
-        <div class="col-md-6 col-lg-3">
-          <div class="card text-center h-100 shadow-sm border-0">
-            <div class="card-body p-4">
-              <i class="fas fa-envelope fa-3x text-danger mb-3"></i>
-              <h5 class="fw-bold">Email</h5>
-              <p class="fs-6 mb-2" style="word-break: break-all;"><strong class="site-email">sapravin46@gmail.com</strong></p>
-              <p class="text-muted small">Send orders & prescription files</p>
-              <a href="mailto:sapravin46@gmail.com" class="btn btn-gold btn-sm mt-2 site-email-link">Send Email</a>
-            </div>
-          </div>
-        </div>
-
-        <!-- Location Card -->
-        <div class="col-md-6 col-lg-3">
-          <div class="card text-center h-100 shadow-sm border-0">
-            <div class="card-body p-4">
-              <i class="fas fa-map-marker-alt fa-3x text-danger mb-3"></i>
-              <h5 class="fw-bold">Location</h5>
-              <p class="small mb-2 text-muted"><strong class="site-address text-dark">1/47, Perumal Kovil Street, Madampakkam, Guduvancheri</strong></p>
-              <a href="#map" class="btn btn-gold btn-sm mt-auto">View Map</a>
-            </div>
-          </div>
-        </div>
-
-        <!-- Hours Card -->
-        <div class="col-md-6 col-lg-3">
-          <div class="card text-center h-100 shadow-sm border-0">
-            <div class="card-body p-4">
-              <i class="fas fa-clock fa-3x text-warning mb-3"></i>
-              <h5 class="fw-bold">Hours</h5>
-              <p class="fs-6 mb-0"><strong class="site-hours">Mon - Sun, 8 AM - 10 PM</strong></p>
-              <p class="text-muted small mt-2">Open for all medical needs</p>
-              <span class="badge bg-success mt-2">Store Open</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- CONTACT FORM & INFO ROW -->
-      <div class="row g-5">
-        <!-- CONTACT FORM -->
-        <div class="col-lg-6">
-          <div class="form-section shadow-sm p-4 rounded bg-white">
-            <h3 class="mb-3 text-dark fw-bold">Contact Siva Medicals</h3>
+  <!-- CONTACT SECTION -->
+  <section class="py-5 bg-light">
+    <div class="container">
+      <div class="row g-4">
+        <!-- Contact Form -->
+        <div class="col-lg-7">
+          <div class="card shadow-sm border-0 p-4 p-md-5">
+            <h3 class="fw-bold mb-3 text-dark">Send Medicine Order / Inquiry</h3>
             <p class="text-muted mb-4">Fill in your details and attach prescription files if available so we can respond faster.</p>
-            
-            <form id="contactForm" novalidate>
-              <div id="formMessage" class="alert d-none" role="alert" aria-live="polite"></div>
 
-              <div class="form-group mb-3">
+            <div id="formMessage" class="d-none"></div>
+
+            <form id="contactForm">
+              <div class="mb-3">
                 <label for="fullName" class="form-label fw-bold">Full Name <span class="text-danger">*</span></label>
-                <input type="text" name="name" id="fullName" class="form-control" placeholder="Enter your full name" required>
+                <input type="text" class="form-control" id="fullName" name="fullName" required placeholder="e.g. Pravinkumar">
               </div>
 
-              <div class="form-group mb-3">
+              <div class="mb-3">
                 <label for="email" class="form-label fw-bold">Email Address <span class="text-danger">*</span></label>
-                <input type="email" name="email" id="email" class="form-control" placeholder="name@example.com" required>
+                <input type="email" class="form-control" id="email" name="email" required placeholder="name@example.com">
               </div>
 
-              <div class="form-group mb-3">
+              <div class="mb-3">
                 <label for="phone" class="form-label fw-bold">Phone Number <span class="text-danger">*</span></label>
-                <input type="tel" name="phone" id="phone" class="form-control" placeholder="10-digit mobile number" required>
+                <input type="tel" class="form-control" id="phone" name="phone" required placeholder="10-digit mobile number">
               </div>
 
-              <div class="form-group mb-3">
-                <label for="category" class="form-label fw-bold">Category <span class="text-danger">*</span></label>
-                <select name="category" id="category" class="form-control" required>
-                  <option value="">-- Select Category --</option>
-                  <option value="with_prescription">With Prescription (Upload file below)</option>
-                  <option value="without_prescription">Without Prescription (General Medicine)</option>
-                  <option value="inquiry">Medicine Price & Stock Inquiry</option>
-                  <option value="order">Home Delivery Order</option>
-                  <option value="feedback">Feedback</option>
+              <div class="mb-3">
+                <label for="category" class="form-label fw-bold">Order / Inquiry Type <span class="text-danger">*</span></label>
+                <select class="form-select" id="category" name="category" required>
+                  <option value="" selected disabled>-- Select Category --</option>
+                  <option value="with_prescription">Medicine Order (With Doctor Prescription)</option>
+                  <option value="without_prescription">General Medicine (Without Prescription)</option>
+                  <option value="order">Healthcare / Wellness Product Order</option>
+                  <option value="inquiry">Medicine Stock & Price Inquiry</option>
+                  <option value="feedback">Customer Feedback / Suggestion</option>
                 </select>
               </div>
 
-              <div class="form-group mb-3">
-                <label for="address" class="form-label fw-bold">Delivery / Home Address <span class="text-danger">*</span></label>
-                <textarea name="address" id="address" class="form-control" rows="2" placeholder="Enter your area/street address" required></textarea>
+              <div class="mb-3" id="prescriptionFileGroup" style="display: none;">
+                <label for="prescriptionFile" class="form-label fw-bold text-primary">
+                  <i class="fas fa-file-medical me-1"></i> Upload Prescription (Image or PDF) <span class="text-danger">*</span>
+                </label>
+                <input class="form-control" type="file" id="prescriptionFile" name="prescription" accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx">
+                <div class="form-text text-muted">Upload doctor's prescription for quick verification and door delivery.</div>
               </div>
 
-              <div class="form-group mb-3">
-                <label for="message" class="form-label fw-bold">Medicine List / Inquiry Message <span class="text-danger">*</span></label>
-                <textarea name="message" id="message" class="form-control" rows="3" placeholder="List required tablet names, dosage, or inquiries..." required></textarea>
+              <div class="mb-3">
+                <label for="address" class="form-label fw-bold">Delivery / Contact Address <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="address" name="address" rows="2" required placeholder="Your address in Madambakkam, Guduvancheri, or nearby..."></textarea>
               </div>
 
-              <div class="form-group mb-3" id="prescriptionFileGroup" style="display:none;">
-                <label for="prescriptionFile" class="form-label fw-bold"><i class="fas fa-file-medical text-primary me-1"></i> Upload Prescription / Report</label>
-                <input type="file" name="prescription" id="prescriptionFile" class="form-control" accept="image/*,.pdf">
-                <small class="text-muted">Supports JPG, PNG, PDF (Max 10MB).</small>
+              <div class="mb-4">
+                <label for="message" class="form-label fw-bold">Required Medicines / Message <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="message" name="message" rows="4" required placeholder="List tablet names, dosage, quantity, or any questions..."></textarea>
               </div>
 
-              <button type="submit" class="btn btn-gold btn-lg w-100 fw-bold shadow-sm">
-                <i class="fas fa-paper-plane me-2"></i> Submit Request
+              <button type="submit" class="btn btn-warning btn-lg fw-bold w-100 shadow-sm py-3">
+                <i class="fas fa-paper-plane me-2"></i> Submit Request & Order
               </button>
             </form>
           </div>
         </div>
 
-        <!-- CONTACT INFO SIDEBAR -->
-        <div class="col-lg-6">
-          <div class="p-4 bg-white rounded shadow-sm">
-            <h3 class="mb-4 text-dark fw-bold">Why Contact Us?</h3>
+        <!-- Pharmacy Info Sidebar -->
+        <div class="col-lg-5">
+          <div class="card shadow-sm border-0 p-4 p-md-5 h-100 bg-white">
+            <h4 class="fw-bold mb-4 text-dark">Why Contact Us?</h4>
             
-            <div class="mb-4 pb-3 border-bottom">
+            <div class="mb-4">
               <h5 class="fw-bold text-primary"><i class="fas fa-headset me-2"></i> Have Questions or Need Medicines?</h5>
-              <p class="text-muted">Contact our pharmacists for instant availability checks, dosage instructions, or door-step delivery.</p>
-              <p class="mb-1"><strong>Phone:</strong> <span class="site-phone">9952930484</span></p>
-              <p class="mb-1"><strong>Email:</strong> <span class="site-email">sapravin46@gmail.com</span></p>
+              <p class="text-muted small">Contact our pharmacists for instant availability checks, dosage instructions, or door-step delivery.</p>
+              
+              <p class="mb-2"><strong>Phone:</strong> <a href="tel:9952930484" class="site-phone text-decoration-none text-dark">9952930484</a></p>
+              <p class="mb-2"><strong>Email:</strong> <a href="mailto:sapravin46@gmail.com" class="site-email text-decoration-none text-dark">sapravin46@gmail.com</a></p>
               <p class="mb-3"><strong>WhatsApp:</strong> <span class="site-whatsapp">9952930484</span></p>
-              <a href="https://wa.me/919952930484" target="_blank" class="btn btn-success btn-sm site-whatsapp-btn"><i class="fab fa-whatsapp me-2"></i>Chat on WhatsApp</a>
+
+              <a href="https://wa.me/919952930484" target="_blank" class="btn btn-success fw-bold site-whatsapp-btn shadow-sm">
+                <i class="fab fa-whatsapp me-2"></i> Chat on WhatsApp
+              </a>
             </div>
 
-            <div class="mb-4 pb-3 border-bottom">
-              <h5 class="fw-bold text-success"><i class="fas fa-credit-card me-2"></i> Payment Details</h5>
-              <p class="mb-1"><strong>GPay Number:</strong> <span class="site-gpay">9097732213</span></p>
-              <small class="text-muted">We accept Google Pay, PhonePe, UPI, and Cash on Delivery.</small>
-            </div>
+            <hr>
 
             <div class="mb-4">
+              <h5 class="fw-bold text-success"><i class="fas fa-wallet me-2"></i> Payment Details</h5>
+              <p class="mb-1"><strong>GPay Number:</strong> <span class="site-gpay">9097732213</span></p>
+              <p class="text-muted small">We accept Google Pay, PhonePe, UPI, and Cash on Delivery.</p>
+            </div>
+
+            <hr>
+
+            <div>
               <h5 class="fw-bold text-danger"><i class="fas fa-map-marked-alt me-2"></i> Pharmacy Address</h5>
               <p class="mb-1 text-muted"><span class="site-address">1/47, Perumal Kovil Street, Madampakkam - Guduvancheri, Kanchipuram Dist - 603 202</span></p>
               <p class="text-muted small"><strong>Store Hours:</strong> <span class="site-hours">Mon - Sun, 8 AM - 10 PM</span></p>
@@ -180,60 +158,71 @@
     </div>
   </section>
 
-  <!-- MAP SECTION -->
-  <section id="map" class="py-5 bg-light">
+  <!-- GOOGLE MAP SECTION -->
+  <section id="map" class="py-5 bg-white border-top">
     <div class="container">
-      <h3 class="text-center mb-4 fw-bold">Find Our Pharmacy on Google Maps</h3>
-      <div class="rounded-4 overflow-hidden shadow">
+      <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <h3 class="fw-bold mb-0"><i class="fas fa-map-marker-alt text-danger me-2"></i> Find Siva Medicals on Google Maps</h3>
+        <a href="https://www.google.com/maps/place/Siva+Medical/@12.8513783,80.0451422,19z/data=!4m6!3m5!1s0x3a52f6fc7a64f62b:0x2f1fc26dd0000000!8m2!3d12.8513783!4d80.0457109!16s%2Fg%2F11rdx4kl1q?entry=ttu" target="_blank" class="btn btn-outline-danger btn-sm fw-bold">
+          <i class="fas fa-external-link-alt me-1"></i> Open in Google Maps App
+        </a>
+      </div>
+      <div class="rounded-4 overflow-hidden shadow border" style="height: 400px;">
         <iframe 
-          src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3890.34752!2d80.050441!3d12.86002!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTLCsDUxJzM2LjEiTiA4MMKwMDMnMTAuOSJF!5e0!3m2!1sen!2sin!4v1731500000000!5m2!1sen!2sin" 
+          src="https://maps.google.com/maps?q=12.8513783,80.0457109+(Siva+Medical)&t=&z=19&ie=UTF8&iwloc=B&output=embed" 
           width="100%" 
-          height="350" 
+          height="100%" 
           style="border:0;" 
           allowfullscreen="" 
-          loading="lazy">
+          loading="lazy" 
+          referrerpolicy="no-referrer-when-downgrade">
         </iframe>
       </div>
     </div>
   </section>
 
   <!-- FOOTER -->
-  <footer>
+  <footer class="footer py-5 bg-dark text-white">
     <div class="container">
-      <div class="row">
+      <div class="row g-4">
         <div class="col-lg-4 mb-4">
-          <h5 style="color: #d4af37;"><i class="fas fa-phone-alt me-2 text-warning"></i> Siva Medicals</h5>
-          <p>Your trusted pharmacy serving Madambakkam and surrounding areas with quality medicines, healthcare essentials, and personal care products.</p>
+          <h5 style="color: #d4af37;"><i class="fas fa-plus-circle text-warning me-2"></i> Siva Medicals</h5>
+          <p class="text-light opacity-75">Your trusted pharmacy serving Madambakkam and surrounding areas with quality medicines, healthcare essentials, and personal care products.</p>
+          <div class="d-flex gap-3 mt-3">
+            <a href="https://facebook.com/sivamedicals" target="_blank" class="social-facebook text-white"><i class="fab fa-facebook-f fa-lg"></i></a>
+            <a href="https://instagram.com/sivamedicals" target="_blank" class="social-instagram text-white"><i class="fab fa-instagram fa-lg"></i></a>
+            <a href="https://wa.me/919952930484" target="_blank" class="social-whatsapp text-white"><i class="fab fa-whatsapp fa-lg"></i></a>
+            <a href="https://twitter.com/sivamedicals" target="_blank" class="social-twitter text-white"><i class="fab fa-twitter fa-lg"></i></a>
+          </div>
         </div>
-        <div class="col-lg-4 mb-4">
+        <div class="col-lg-3 mb-4">
           <h5 style="color: #d4af37;">Quick Links</h5>
           <ul class="list-unstyled">
-            <li><a href="index.html">Home</a></li>
-            <li><a href="about.html">About Us</a></li>
-            <li><a href="services.html">Services</a></li>
-            <li><a href="products.html">Products</a></li>
-            <li><a href="contact.html">Contact</a></li>
+            <li class="mb-2"><a href="index.html" class="text-white-50 text-decoration-none">Home</a></li>
+            <li class="mb-2"><a href="about.html" class="text-white-50 text-decoration-none">About Us</a></li>
+            <li class="mb-2"><a href="services.html" class="text-white-50 text-decoration-none">Services</a></li>
+            <li class="mb-2"><a href="products.html" class="text-white-50 text-decoration-none">Products</a></li>
+            <li class="mb-2"><a href="contact.html" class="text-white text-decoration-none fw-bold">Contact</a></li>
           </ul>
         </div>
-        <div class="col-lg-4 mb-4">
+        <div class="col-lg-5 mb-4">
           <h5 style="color: #d4af37;">Contact Info</h5>
-          <p><i class="fas fa-phone"></i> Phone: <strong class="site-phone">9952930484</strong></p>
-          <p><i class="fas fa-envelope"></i> Email: <strong class="site-email"><a href="mailto:sapravin46@gmail.com" class="site-email-link" style="color: inherit; text-decoration: none;">sapravin46@gmail.com</a></strong></p>
-          <p><i class="fas fa-map-marker-alt"></i> Location: <strong class="site-address">1/47, Perumal Kovil Street, Madampakkam - Guduvancheri, Kanchipuram Dist - 603 202</strong></p>
-          <p><i class="fas fa-clock"></i> Hours: <span class="site-hours">Mon - Sun, 8 AM - 10 PM</span></p>
-          <p><i class="fas fa-wallet"></i> GPay: <strong class="site-gpay">9097732213</strong></p>
-          <p><i class="fab fa-whatsapp"></i> WhatsApp: <strong class="site-whatsapp">9952930484</strong></p>
+          <p class="mb-2"><i class="fas fa-phone text-warning me-2"></i> Phone: <strong class="site-phone">9952930484</strong></p>
+          <p class="mb-2"><i class="fas fa-envelope text-warning me-2"></i> Email: <strong class="site-email">sapravin46@gmail.com</strong></p>
+          <p class="mb-2"><i class="fas fa-map-marker-alt text-danger me-2"></i> Location: <strong class="site-address">1/47, Perumal Kovil Street, Madampakkam - Guduvancheri, Kanchipuram Dist - 603 202</strong></p>
+          <p class="mb-2"><i class="fas fa-clock text-warning me-2"></i> Hours: <span class="site-hours">Mon - Sun, 8 AM - 10 PM</span></p>
+          <p class="mb-2"><i class="fas fa-wallet text-info me-2"></i> GPay: <strong class="site-gpay">9097732213</strong></p>
         </div>
       </div>
-      <hr style="border-color: #555;">
-      <div class="text-center">
-        <p>&copy; 2026 Siva Medicals. All rights reserved. | <a href="#">Privacy Policy</a> | <a href="#">Terms of Service</a></p>
+      <div class="footer-bottom text-center mt-4 pt-3 border-top border-secondary">
+        <p class="mb-0 text-white-50">&copy; 2026 Siva Medicals. All rights reserved. | <a href="privacy-policy.html" class="text-warning text-decoration-none">Privacy Policy</a> | <a href="terms-of-service.html" class="text-warning text-decoration-none">Terms of Service</a></p>
       </div>
     </div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="js/script.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>`n  <script src="js/contact-api.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <script src="js/contact-api.js"></script>
 </body>
 </html>

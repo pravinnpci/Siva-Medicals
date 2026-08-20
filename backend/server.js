@@ -101,7 +101,11 @@ try {
         ['company_whatsapp', process.env.SIVA_WEBSITE_WHATSAPP_NUMBER || '9952930484'],
         ['company_gpay', '9097732213'],
         ['company_address', '1/47, Perumal Kovil Street, Madampakkam - Guduvancheri, Kanchipuram Dist - 603 202'],
-        ['company_hours', 'Mon - Sun, 8 AM - 10 PM']
+        ['company_hours', 'Mon - Sun, 8 AM - 10 PM'],
+        ['social_facebook', 'https://facebook.com/sivamedicals'],
+        ['social_instagram', 'https://instagram.com/sivamedicals'],
+        ['social_whatsapp', 'https://wa.me/919952930484'],
+        ['social_twitter', 'https://twitter.com/sivamedicals']
       ];
 
       for (const [key, val] of defaultSettings) {
@@ -147,6 +151,10 @@ async function getSiteSettings() {
     company_gpay: '9097732213',
     company_address: '1/47, Perumal Kovil Street, Madampakkam - Guduvancheri, Kanchipuram Dist - 603 202',
     company_hours: 'Mon - Sun, 8 AM - 10 PM',
+    social_facebook: 'https://facebook.com/sivamedicals',
+    social_instagram: 'https://instagram.com/sivamedicals',
+    social_whatsapp: 'https://wa.me/919952930484',
+    social_twitter: 'https://twitter.com/sivamedicals',
     emailjs_service_id: process.env.SIVA_EMAILJS_SERVICE_ID || 'sivamedical',
     emailjs_template_id: process.env.SIVA_EMAILJS_TEMPLATE_ID || 'template_2fzsb0d',
     emailjs_public_key: process.env.SIVA_EMAILJS_PUBLIC_KEY || 'cWmO8pjToTEkzUc5Z'
@@ -337,7 +345,7 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
 });
 
 // ========================================
-// 5. ADMIN PANEL & DELETION ROUTES
+// 5. ADMIN PANEL & BULK DELETION ROUTES
 // ========================================
 
 app.get('/admin/login', (req, res) => {
@@ -408,7 +416,21 @@ app.get('/admin/contacts', requireAuth, async (req, res) => {
   }
 });
 
-// Delete contact and attached prescription
+// Update single contact status
+app.post('/admin/contacts/:id/status', requireAuth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const contactId = req.params.id;
+    if (!pool) return res.status(503).json({ success: false, error: 'DB Offline' });
+
+    await pool.query('UPDATE contact_submissions SET status = $1, read_by = $2 WHERE id = $3', [status, req.session.username || 'admin', contactId]);
+    res.json({ success: true, message: 'Status updated' });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Single contact deletion
 app.delete('/admin/contacts/:id', requireAuth, async (req, res) => {
   try {
     const contactId = req.params.id;
@@ -426,6 +448,35 @@ app.delete('/admin/contacts/:id', requireAuth, async (req, res) => {
     await pool.query('DELETE FROM contact_submissions WHERE id = $1', [contactId]);
     res.json({ success: true, message: 'Submission and file deleted successfully.' });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Bulk Delete Contacts
+app.post('/admin/contacts/bulk-delete', requireAuth, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'No contact IDs provided' });
+    }
+
+    if (!pool) return res.status(503).json({ success: false, error: 'Database offline' });
+
+    const filesRes = await pool.query('SELECT prescription_path FROM contact_submissions WHERE id = ANY($1::int[])', [ids]);
+    filesRes.rows.forEach(r => {
+      if (r.prescription_path) {
+        const fname = path.basename(r.prescription_path);
+        const diskPath = path.join(UPLOADS_DIR, fname);
+        if (fs.existsSync(diskPath)) {
+          try { fs.unlinkSync(diskPath); } catch(e){}
+        }
+      }
+    });
+
+    await pool.query('DELETE FROM contact_submissions WHERE id = ANY($1::int[])', [ids]);
+    res.json({ success: true, message: `Successfully deleted ${ids.length} submission(s).` });
+  } catch (error) {
+    console.error('Bulk delete contacts error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -507,7 +558,7 @@ app.get('/admin/files', requireAuth, async (req, res) => {
   }
 });
 
-// Delete file by filename (from disk and DB)
+// Single file deletion
 app.post('/admin/files/delete-by-name', requireAuth, async (req, res) => {
   try {
     const { filename } = req.body;
@@ -533,6 +584,38 @@ app.post('/admin/files/delete-by-name', requireAuth, async (req, res) => {
   }
 });
 
+// Bulk Delete Files
+app.post('/admin/files/bulk-delete', requireAuth, async (req, res) => {
+  try {
+    const { filenames } = req.body;
+    if (!Array.isArray(filenames) || filenames.length === 0) {
+      return res.status(400).json({ success: false, error: 'No filenames provided' });
+    }
+
+    filenames.forEach(fn => {
+      const safeName = path.basename(fn);
+      const diskPath = path.join(UPLOADS_DIR, safeName);
+      if (fs.existsSync(diskPath)) {
+        try { fs.unlinkSync(diskPath); } catch (e) {}
+      }
+    });
+
+    if (pool) {
+      await pool.query('DELETE FROM file_uploads WHERE filename = ANY($1::varchar[])', [filenames]).catch(() => {});
+      for (const fn of filenames) {
+        const safeName = path.basename(fn);
+        await pool.query('UPDATE contact_submissions SET prescription_path = NULL WHERE prescription_path LIKE $1', [`%${safeName}%`]).catch(() => {});
+      }
+    }
+
+    res.json({ success: true, message: `Successfully deleted ${filenames.length} file(s).` });
+  } catch (error) {
+    console.error('Bulk delete files error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Admin Site Settings (General + Social Media)
 app.get('/admin/settings', requireAuth, async (req, res) => {
   try {
     const settings = await getSiteSettings();
@@ -544,7 +627,19 @@ app.get('/admin/settings', requireAuth, async (req, res) => {
 
 app.post('/admin/settings', requireAuth, async (req, res) => {
   try {
-    const { company_email, company_phone, company_whatsapp, company_gpay, company_address, company_hours } = req.body;
+    const { 
+      company_email, 
+      company_phone, 
+      company_whatsapp, 
+      company_gpay, 
+      company_address, 
+      company_hours,
+      social_facebook,
+      social_instagram,
+      social_whatsapp,
+      social_twitter
+    } = req.body;
+
     if (pool) {
       const updates = [
         ['company_email', company_email],
@@ -552,7 +647,11 @@ app.post('/admin/settings', requireAuth, async (req, res) => {
         ['company_whatsapp', company_whatsapp],
         ['company_gpay', company_gpay],
         ['company_address', company_address],
-        ['company_hours', company_hours]
+        ['company_hours', company_hours],
+        ['social_facebook', social_facebook],
+        ['social_instagram', social_instagram],
+        ['social_whatsapp', social_whatsapp],
+        ['social_twitter', social_twitter]
       ];
       for (const [k, v] of updates) {
         if (v !== undefined) {
