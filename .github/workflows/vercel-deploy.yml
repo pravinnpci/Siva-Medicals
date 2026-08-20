@@ -29,7 +29,17 @@ jobs:
         run: npm install --global vercel@latest
 
       - name: Deploy to Vercel Production
-        run: vercel --prod --yes --token=${{ secrets.SIVA_VERCEL_TOKEN || secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.SIVA_VERCEL_ORG_ID || secrets.VERCEL_ORG_ID || 'team_3hlRASIx1p3qCFTRNKRJ2wgu' }}
-          VERCEL_PROJECT_ID: ${{ secrets.SIVA_VERCEL_PROJECT_ID || secrets.VERCEL_PROJECT_ID || 'prj_jF7F02TIrbzZD8zNfezoEpPtFGQa' }}
+        run: |
+          vercel deploy --prod --yes \
+            --token="${{ secrets.SIVA_VERCEL_TOKEN || secrets.VERCEL_TOKEN }}" \
+            --scope="${{ secrets.SIVA_VERCEL_ORG_ID || secrets.VERCEL_ORG_ID || 'team_3hlRASIx1p3qCFTRNKRJ2wgu' }}" \
+            --env SIVA_DATABASE_URL="${{ secrets.SIVA_DATABASE_URL || 'postgresql://postgres.vdccpnmlnppqdxgdhuok:siva-medicals01@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres' }}" \
+            --env SIVA_SUPABASE_URL="${{ secrets.SIVA_SUPABASE_URL || 'https://vdccpnmlnppqdxgdhuok.supabase.co' }}" \
+            --env SIVA_SUPABASE_ANON_KEY="${{ secrets.SIVA_SUPABASE_ANON_KEY || 'sb_publishable_d8eFggqr9eQ3aYPIhyZQxA_DxbgPpI9' }}" \
+            --env SIVA_SESSION_SECRET="${{ secrets.SIVA_SESSION_SECRET || '18b0a71548b94988df6e94f6550af7a82eb149d50514ebca22a4db807e0e21db' }}" \
+            --env SIVA_COMPANY_EMAIL="${{ secrets.SIVA_COMPANY_EMAIL || 'sapravin46@gmail.com' }}" \
+            --env SIVA_EMAILJS_SERVICE_ID="${{ secrets.SIVA_EMAILJS_SERVICE_ID || 'sivamedical' }}" \
+            --env SIVA_EMAILJS_TEMPLATE_ID="${{ secrets.SIVA_EMAILJS_TEMPLATE_ID || 'template_2fzsb0d' }}" \
+            --env SIVA_EMAILJS_PUBLIC_KEY="${{ secrets.SIVA_EMAILJS_PUBLIC_KEY || 'cWmO8pjToTEkzUc5Z' }}" \
+            --env SIVA_WEBSITE_WHATSAPP_NUMBER="${{ secrets.SIVA_WEBSITE_WHATSAPP_NUMBER || '9952930484' }}" \
+            --build-env SIVA_DATABASE_URL="${{ secrets.SIVA_DATABASE_URL || 'postgresql://postgres.vdccpnmlnppqdxgdhuok:siva-medicals01@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres' }}"
