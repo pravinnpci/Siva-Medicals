@@ -135,8 +135,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         const result = await response.json();
         const prescriptionUrl = result.prescriptionUrl || (result.prescriptionPath ? (window.location.origin + result.prescriptionPath) : null);
 
-        // 2. Dispatch Automated Customer Confirmation via EmailJS
+        // 2. Dispatch Automated Emails via EmailJS
         if (typeof emailjs !== 'undefined' && EMAILJS_CONFIG.serviceId && EMAILJS_CONFIG.templateId) {
+          // A. Customer Confirmation Email
           try {
             await emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, {
               email: email,
@@ -161,6 +162,34 @@ document.addEventListener('DOMContentLoaded', async function() {
             console.log('✉️ EmailJS customer confirmation sent successfully to', email);
           } catch (ejsErr) {
             console.warn('EmailJS customer dispatch note:', ejsErr.text || ejsErr.message);
+          }
+
+          // B. Admin Lead Alert Email (Directly to sapravin46@gmail.com)
+          const adminEmail = SITE_SETTINGS.company_email || 'sapravin46@gmail.com';
+          try {
+            await emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, {
+              email: adminEmail,
+              to_email: adminEmail,
+              user_email: adminEmail,
+              reply_to: email,
+              recipient: adminEmail,
+              to_name: 'Siva Medicals Admin',
+              name: `[NEW ORDER] ${name} (${phone})`,
+              user_name: name,
+              user_phone: phone,
+              phone: phone,
+              category: category.replace(/_/g, ' ').toUpperCase(),
+              message: `NEW CUSTOMER ORDER:\nName: ${name}\nPhone: ${phone}\nEmail: ${email}\nAddress: ${address}\nMessage/Tablets: ${message}\nPrescription: ${prescriptionUrl || 'None'}`,
+              address: address,
+              prescription_url: prescriptionUrl || 'None',
+              store_name: 'Siva Medicals',
+              store_phone: SITE_SETTINGS.company_phone || '9952930484',
+              store_email: adminEmail,
+              store_address: '1/47, Perumal Kovil Street, Madampakkam, Guduvancheri'
+            });
+            console.log('✉️ EmailJS Admin Lead alert sent successfully to', adminEmail);
+          } catch (adminEjsErr) {
+            console.warn('EmailJS admin alert note:', adminEjsErr.text || adminEjsErr.message);
           }
         }
 
