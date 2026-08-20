@@ -65,22 +65,25 @@
                         <img src="/images/Logo-%20Sivamedical.png" alt="Siva Medicals Logo" style="height:28px; width:auto;">
                         Siva Medicals
                     </h5>
-                    <nav class="nav flex-column">
-                        <a class="nav-link" href="/admin/dashboard">
-                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                                        <nav class="nav flex-column gap-1">
+                        <a class="nav-link  d-flex align-items-center" href="/admin/dashboard">
+                            <i class="fas fa-tachometer-alt me-2" style="width: 20px;"></i> <span>Dashboard</span>
                         </a>
-                        <a class="nav-link active" href="/admin/contacts">
-                            <i class="fas fa-envelope"></i> Contact Forms
+                        <a class="nav-link active d-flex align-items-center" href="/admin/contacts">
+                            <i class="fas fa-envelope me-2" style="width: 20px;"></i> <span>Contact Forms</span>
                         </a>
-                        <a class="nav-link" href="/admin/files">
-                            <i class="fas fa-file-upload"></i> File Uploads
+                        <a class="nav-link  d-flex align-items-center" href="/admin/files">
+                            <i class="fas fa-file-upload me-2" style="width: 20px;"></i> <span>File Uploads</span>
                         </a>
-                        <a class="nav-link" href="/admin/whatsapp">
-                            <i class="fab fa-whatsapp"></i> WhatsApp
+                        <a class="nav-link  d-flex align-items-center" href="/admin/whatsapp">
+                            <i class="fab fa-whatsapp me-2" style="width: 20px;"></i> <span>WhatsApp</span>
                         </a>
-                        <% if (user.role === 'super_admin') { %>
-                        <a class="nav-link" href="/admin/users">
-                            <i class="fas fa-users"></i> Users
+                        <a class="nav-link  d-flex align-items-center" href="/admin/settings">
+                            <i class="fas fa-cog me-2" style="width: 20px;"></i> <span>Site Settings</span>
+                        </a>
+                        <% if (user && user.role === 'super_admin') { %>
+                        <a class="nav-link  d-flex align-items-center" href="/admin/users">
+                            <i class="fas fa-users me-2" style="width: 20px;"></i> <span>Users</span>
                         </a>
                         <% } %>
                     </nav>
@@ -354,7 +357,7 @@
                 const contactId = this.dataset.id;
                 
                 if (confirm('Are you sure you want to delete this submission? This action cannot be undone.')) {
-                    console.log(`📡 Sending DELETE request for ID: ${contactId} to /admin/contacts/${contactId}`);
+                    console.log(`ðŸ“¡ Sending DELETE request for ID: ${contactId} to /admin/contacts/${contactId}`);
                     try {
                         const response = await fetch(`/admin/contacts/${contactId}`, {
                             method: 'DELETE',

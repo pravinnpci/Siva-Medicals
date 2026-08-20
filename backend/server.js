@@ -1,226 +1,257 @@
-require('dotenv').config({ path: ['.env.local', '.env'] }); // Prioritize .env.local for local overrides
+require('dotenv').config({ path: ['.env.local', '.env'] });
 const express = require('express');
 const session = require('express-session');
 const PgSession = require('connect-pg-simple')(session);
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
 const twilio = require('twilio');
 const cors = require('cors');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.SIVA_PORT || process.env.PORT || 3001;
 
-// Database connection with fallback
-let pool;
+// ========================================
+// 1. DATABASE CONFIGURATION (SUPABASE / POSTGRES)
+// ========================================
+let pool = null;
 try {
-  const connectionConfig = process.env.DATABASE_URL 
-    ? { connectionString: process.env.DATABASE_URL }
-    : {
-        user: process.env.DB_USER || 'postgres',
-        host: process.env.DB_HOST || 'localhost',
-        database: process.env.DB_NAME || 'siva_medicals',
-        password: process.env.DB_PASSWORD || 'admin',
-        port: process.env.DB_PORT || 5432,
-      };
+  const dbUrl = process.env.SIVA_DATABASE_URL || process.env.DATABASE_URL;
+  const dbHost = process.env.SIVA_DB_HOST || process.env.DB_HOST;
+
+  let connectionConfig;
+  if (dbUrl) {
+    connectionConfig = {
+      connectionString: dbUrl,
+      ssl: { rejectUnauthorized: false }
+    };
+  } else if (dbHost && dbHost !== 'localhost') {
+    connectionConfig = {
+      user: process.env.SIVA_DB_USER || 'postgres',
+      host: dbHost,
+      database: process.env.SIVA_DB_NAME || 'postgres',
+      password: process.env.SIVA_DB_PASSWORD || 'admin',
+      port: parseInt(process.env.SIVA_DB_PORT || '5432', 10),
+    };
+  } else {
+    connectionConfig = {
+      user: process.env.SIVA_DB_USER || 'postgres',
+      host: 'localhost',
+      database: process.env.SIVA_DB_NAME || 'postgres',
+      password: process.env.SIVA_DB_PASSWORD || 'admin',
+      port: parseInt(process.env.SIVA_DB_PORT || '5432', 10),
+    };
+  }
 
   pool = new Pool(connectionConfig);
+  pool.on('error', (err) => console.error('Unexpected error on idle DB client:', err.message));
 
-  // Handle unexpected errors on idle clients to prevent process crashes
-  pool.on('error', (err) => {
-    console.error('Unexpected error on idle database client:', err);
-  });
-
-  // Function to initialize database schema
   const initializeSchema = async () => {
     try {
       await pool.query('SELECT NOW()');
-      console.log('✅ Database connected successfully. Initializing schema...');
+      console.log('Database connected successfully. Initializing schema...');
 
-    const initSql = `
-      BEGIN;
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username VARCHAR(50) UNIQUE NOT NULL,
-        email VARCHAR(100) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        role VARCHAR(20) DEFAULT 'admin',
-        is_active BOOLEAN DEFAULT true,
-        last_login TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+      const initSql = `
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          username VARCHAR(50) UNIQUE NOT NULL,
+          email VARCHAR(100) UNIQUE NOT NULL,
+          password_hash VARCHAR(255) NOT NULL,
+          role VARCHAR(20) DEFAULT 'admin',
+          is_active BOOLEAN DEFAULT true,
+          last_login TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
 
-      CREATE TABLE IF NOT EXISTS contact_submissions (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
-        email VARCHAR(100) NOT NULL,
-        phone VARCHAR(20) NOT NULL,
-        subject VARCHAR(200),
-        message TEXT NOT NULL,
-        address TEXT,
-        gpay VARCHAR(50),
-        whatsapp VARCHAR(20),
-        prescription_path VARCHAR(500),
-        category VARCHAR(50),
-        status VARCHAR(20) DEFAULT 'unread',
-        read_by VARCHAR(100),
-        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+        CREATE TABLE IF NOT EXISTS contact_submissions (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(100) NOT NULL,
+          email VARCHAR(100) NOT NULL,
+          phone VARCHAR(20) NOT NULL,
+          subject VARCHAR(200),
+          message TEXT NOT NULL,
+          address TEXT,
+          gpay VARCHAR(50),
+          whatsapp VARCHAR(20),
+          prescription_path VARCHAR(500),
+          category VARCHAR(50),
+          status VARCHAR(20) DEFAULT 'unread',
+          read_by VARCHAR(100),
+          submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
 
-      CREATE INDEX IF NOT EXISTS "idx_contacts_submitted_at" ON contact_submissions (submitted_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_contacts_submitted_at ON contact_submissions (submitted_at DESC);
 
-      CREATE TABLE IF NOT EXISTS file_uploads (
-        id SERIAL PRIMARY KEY,
-        filename VARCHAR(255) NOT NULL,
-        original_name VARCHAR(255) NOT NULL,
-        mime_type VARCHAR(100) NOT NULL,
-        size INTEGER NOT NULL,
-        upload_path VARCHAR(500) NOT NULL,
-        uploaded_by INTEGER REFERENCES users(id),
-        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+        CREATE TABLE IF NOT EXISTS file_uploads (
+          id SERIAL PRIMARY KEY,
+          filename VARCHAR(255) NOT NULL,
+          original_name VARCHAR(255) NOT NULL,
+          mime_type VARCHAR(100) NOT NULL,
+          size INTEGER NOT NULL,
+          upload_path VARCHAR(500) NOT NULL,
+          uploaded_by INTEGER REFERENCES users(id),
+          uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
 
-      CREATE TABLE IF NOT EXISTS whatsapp_messages (
-        id SERIAL PRIMARY KEY,
-        from_number VARCHAR(20) NOT NULL,
-        to_number VARCHAR(20) NOT NULL,
-        message_body TEXT NOT NULL,
-        message_type VARCHAR(20) DEFAULT 'text',
-        direction VARCHAR(10) DEFAULT 'inbound',
-        status VARCHAR(20) DEFAULT 'received',
-        received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        twilio_sid VARCHAR(50)
-      );
-      COMMIT;
-    `;
+        CREATE TABLE IF NOT EXISTS whatsapp_messages (
+          id SERIAL PRIMARY KEY,
+          from_number VARCHAR(20) NOT NULL,
+          to_number VARCHAR(20) NOT NULL,
+          message_body TEXT NOT NULL,
+          message_type VARCHAR(20) DEFAULT 'text',
+          direction VARCHAR(10) DEFAULT 'inbound',
+          status VARCHAR(20) DEFAULT 'received',
+          received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          twilio_sid VARCHAR(50)
+        );
 
-    await pool.query(initSql);
-    
-    // Programmatic Seeding to ensure Bcrypt compatibility
-    const admin123Hash = await bcrypt.hash('admin123', 10);
-    const pravinAdminHash = await bcrypt.hash('admin', 10);
+        CREATE TABLE IF NOT EXISTS site_settings (
+          key VARCHAR(50) PRIMARY KEY,
+          value TEXT NOT NULL,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
 
-    const seedSql = `
-      INSERT INTO users (username, email, password_hash, role)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash, email = EXCLUDED.email, role = EXCLUDED.role, is_active = true, updated_at = CURRENT_TIMESTAMP;
-    `;
+        CREATE TABLE IF NOT EXISTS "session" (
+          "sid" varchar NOT NULL COLLATE "default" PRIMARY KEY,
+          "sess" json NOT NULL,
+          "expire" timestamp(6) NOT NULL
+        ) WITH (OIDS=FALSE);
 
-    await pool.query(seedSql, ['admin', 'admin@sivamedicals.com', admin123Hash, 'super_admin']);
-    await pool.query(seedSql, ['pravin', 'sapravin46@gmail.com', pravinAdminHash, 'super_admin']);
+        CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+      `;
 
-    // Diagnostic: Self-test hash verification
-    const adminTest = await bcrypt.compare('admin123', admin123Hash);
-    const pravinTest = await bcrypt.compare('admin', pravinAdminHash);
-    console.log(`🧪 Hash Self-Test: admin123(${adminTest}), admin(${pravinTest})`);
-    console.log('✅ Database schema and seeding initialized successfully');
-    } catch (err) {
-      throw err;
-    }
-  };
+      await pool.query(initSql);
 
-  // Attempt initialization with retries to handle K8s startup delays
-  const startup = async (retries = 10) => {
-    console.log('🚀 Starting Database Initialization Sequence...');
-    for (let i = 0; i < retries; i++) {
-      try {
-        await initializeSchema();
-        return;
-      } catch (err) {
-        console.warn(`⚠️  Database connection attempt ${i + 1} failed: ${err.message}`);
-        if (i < retries - 1) {
-          console.log(`Retrying in 10 seconds...`);
-          await new Promise(resolve => setTimeout(resolve, 10000));
-        } else {
-          console.warn('❌ Max retries reached. System will remain in limited mode until DB is available.');
-          // We no longer set pool = null, allowing the health check to succeed later
-        }
+      const defaultSettings = [
+        ['company_email', process.env.SIVA_COMPANY_EMAIL || 'sapravin46@gmail.com'],
+        ['company_phone', process.env.SIVA_WEBSITE_WHATSAPP_NUMBER || '9952930484'],
+        ['company_whatsapp', process.env.SIVA_WEBSITE_WHATSAPP_NUMBER || '9952930484'],
+        ['company_gpay', '9097732213'],
+        ['company_address', '1/47, Perumal Kovil Street, Madampakkam - Guduvancheri, Kanchipuram Dist - 603 202'],
+        ['company_hours', 'Mon - Sun, 8 AM - 10 PM']
+      ];
+
+      for (const [key, val] of defaultSettings) {
+        await pool.query(
+          'INSERT INTO site_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING;',
+          [key, val]
+        );
       }
+
+      const adminHash = await bcrypt.hash('admin123', 10);
+      const pravinHash = await bcrypt.hash('admin', 10);
+      await pool.query(`
+        INSERT INTO users (username, email, password_hash, role)
+        VALUES ('admin', 'admin@sivamedicals.com', $1, 'super_admin')
+        ON CONFLICT (username) DO NOTHING;
+      `, [adminHash]);
+      await pool.query(`
+        INSERT INTO users (username, email, password_hash, role)
+        VALUES ('pravin', 'sapravin46@gmail.com', $1, 'super_admin')
+        ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash;
+      `, [pravinHash]);
+
+      console.log('Database schema and seeding initialized successfully');
+    } catch (err) {
+      console.warn('DB initialization error:', err.message);
     }
   };
 
-  startup();
-} catch (error) {
-  console.warn('⚠️  Database configuration error:', error.message);
-  console.warn('Running in offline mode - some features disabled');
+  initializeSchema();
+} catch (err) {
+  console.warn('DB configuration error:', err.message);
   pool = null;
 }
 
-// Twilio setup for WhatsApp (optional)
+// ========================================
+// 2. TWILIO WHATSAPP CLIENT
+// ========================================
 let twilioClient = null;
-if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+const twilioSid = process.env.SIVA_TWILIO_ACCOUNT_SID;
+const twilioAuth = process.env.SIVA_TWILIO_AUTH_TOKEN;
+const twilioWhatsappFrom = process.env.SIVA_TWILIO_WHATSAPP_NUMBER || '+14155238886';
+
+if (twilioSid && twilioAuth) {
   try {
-    twilioClient = twilio(
-      process.env.TWILIO_ACCOUNT_SID,
-      process.env.TWILIO_AUTH_TOKEN
-    );
-    // Verify from number format
-    const fromNum = process.env.TWILIO_WHATSAPP_FROM || process.env.TWILIO_WHATSAPP_NUMBER;
-    if (fromNum && !fromNum.startsWith('whatsapp:')) {
-        console.log('ℹ️ Adding "whatsapp:" prefix to Twilio sender number');
-    }
-    console.log('✅ Twilio client initialized');
-    console.log('📱 Twilio Account SID:', process.env.TWILIO_ACCOUNT_SID.substring(0, 10) + '...');
-    console.log('📱 WhatsApp Number:', process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_WHATSAPP_FROM);
-  } catch (error) {
-    console.warn('⚠️  Twilio initialization failed:', error.message);
-    console.warn('WhatsApp features will be disabled');
+    twilioClient = twilio(twilioSid, twilioAuth);
+    console.log('Twilio client initialized');
+  } catch (e) {
+    console.warn('Twilio init error:', e.message);
   }
-} else {
-  console.warn('⚠️  Twilio credentials not found');
-  console.warn('   - TWILIO_ACCOUNT_SID:', process.env.TWILIO_ACCOUNT_SID ? 'Found' : 'Missing');
-  console.warn('   - TWILIO_AUTH_TOKEN:', process.env.TWILIO_AUTH_TOKEN ? 'Found' : 'Missing');
-  console.warn('   - TWILIO_WHATSAPP_NUMBER:', process.env.TWILIO_WHATSAPP_NUMBER ? 'Found' : 'Missing');
-  console.warn('WhatsApp features will be disabled');
 }
 
-// Trust the first proxy (Nginx) to correctly detect protocol and host
+// ========================================
+// 3. HELPER FUNCTIONS
+// ========================================
+async function getSiteSettings() {
+  const defaults = {
+    company_email: process.env.SIVA_COMPANY_EMAIL || 'sapravin46@gmail.com',
+    company_phone: process.env.SIVA_WEBSITE_WHATSAPP_NUMBER || '9952930484',
+    company_whatsapp: process.env.SIVA_WEBSITE_WHATSAPP_NUMBER || '9952930484',
+    company_gpay: '9097732213',
+    company_address: '1/47, Perumal Kovil Street, Madampakkam - Guduvancheri, Kanchipuram Dist - 603 202',
+    company_hours: 'Mon - Sun, 8 AM - 10 PM',
+    emailjs_service_id: process.env.SIVA_EMAILJS_SERVICE_ID || 'sivamedical',
+    emailjs_template_id: process.env.SIVA_EMAILJS_TEMPLATE_ID || 'template_2fzsb0d',
+    emailjs_public_key: process.env.SIVA_EMAILJS_PUBLIC_KEY || 'cWmO8pjToTEkzUc5Z'
+  };
+
+  if (!pool) return defaults;
+  try {
+    const res = await pool.query('SELECT key, value FROM site_settings');
+    const dbSettings = {};
+    res.rows.forEach(r => { dbSettings[r.key] = r.value; });
+    return { ...defaults, ...dbSettings };
+  } catch (e) {
+    return defaults;
+  }
+}
+
+function formatWhatsAppNumber(rawNumber) {
+  if (!rawNumber) return null;
+  let cleaned = rawNumber.toString().trim().replace(/[^0-9+]/g, '');
+  if (cleaned.startsWith('whatsapp:')) cleaned = cleaned.replace('whatsapp:', '');
+  if (cleaned.startsWith('+')) return `whatsapp:${cleaned}`;
+  if (cleaned.length === 10) return `whatsapp:+91${cleaned}`;
+  return `whatsapp:+${cleaned}`;
+}
+
+// ========================================
+// 4. MIDDLEWARES & STORAGE
+// ========================================
 app.set('trust proxy', 1);
 
-// Middleware
-// Session configuration
 app.use(session({
   store: pool ? new PgSession({
     pool: pool,
     tableName: 'session',
     createTableIfMissing: true
   }) : undefined,
-  secret: process.env.SESSION_SECRET || 'siva-medicals-secret-key',
+  secret: process.env.SIVA_SESSION_SECRET || 'siva-medicals-secret-key-2026',
   resave: false,
   saveUninitialized: false,
   cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-app.use(cors()); // Add CORS support to allow S3 frontend communication
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Request logger for debugging admin routes
-app.use('/admin', (req, res, next) => {
-  console.log(`[Admin Access] ${req.method} ${req.originalUrl} - Session: ${req.session ? (req.session.userId ? 'Active' : 'None') : 'No Session Middleware'}`);
-  next();
-});
-
-// Set view engine
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Resolve uploads directory.
-// In Kubernetes, we mount the S3 bucket at /app/uploads. In local dev, it is ./uploads.
 const UPLOADS_DIR = fs.existsSync('/app/uploads')
   ? '/app/uploads'
   : path.resolve(process.cwd(), 'uploads');
 
-// Static files
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/images', express.static(path.join(__dirname, 'images')));
 app.use('/uploads', express.static(UPLOADS_DIR));
 
-// File upload configuration
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     if (!fs.existsSync(UPLOADS_DIR)) {
@@ -236,14 +267,11 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage: storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit
-  },
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx/;
+    const allowedTypes = /jpeg|jpg|png|gif|webp|pdf|doc|docx/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
-
     if (mimetype && extname) {
       return cb(null, true);
     } else {
@@ -252,406 +280,163 @@ const upload = multer({
   }
 });
 
-function formatWhatsAppNumber(rawNumber) {
-  if (!rawNumber) return null;
-
-  // Remove all non-numeric characters except +
-  let cleaned = rawNumber.toString().trim().replace(/[^0-9+]/g, '');
-  
-  // If it already has the prefix, clean it to standard first
-  if (cleaned.startsWith('whatsapp:')) cleaned = cleaned.replace('whatsapp:', '');
-  
-  // If it starts with +, just prepend whatsapp:
-  if (cleaned.startsWith('+')) return `whatsapp:${cleaned}`;
-  
-  // Default to India (+91) if 10 digits provided
-  if (cleaned.length === 10) return `whatsapp:+91${cleaned}`;
-  
-  // Otherwise just prepend + and whatsapp:
-  return `whatsapp:+${cleaned}`;
-}
-
-// Authentication middleware
 function requireAuth(req, res, next) {
-  if (req.session.userId) {
-    return next();
-  }
-  // Return JSON for API/AJAX calls instead of redirecting to HTML login page
+  if (req.session.userId) return next();
   if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json')) || req.method !== 'GET') {
     return res.status(401).json({ error: 'Session expired. Please login again.' });
   }
   res.redirect('/admin/login');
 }
 
-// Routes
-
-// Admin login page
-app.get('/admin/login', (req, res) => {
-  res.render('admin/login', { error: null });
-});
-
-app.post('/admin/login', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    if (!pool) throw new Error('Database pool not initialized');
-
-    console.log(`🔐 Login attempt for username: ${username}`);
-
-    if (!pool) {
-      return res.render('admin/login', { error: 'Database connection not available' });
-    }
-
-    // Use LOWER() for case-insensitive username lookup
-    const result = await pool.query(
-      'SELECT * FROM users WHERE LOWER(username) = LOWER($1) AND is_active = true',
-      [username ? username.trim() : '']
-    );
-
-    if (result.rows.length === 0) {
-      console.log(`👤 User not found: ${username}`);
-      return res.render('admin/login', { error: 'Invalid credentials' });
-    }
-
-    const user = result.rows[0];
-    const inputPassword = (password || '').toString().trim();
-    const dbHash = (user.password_hash || '').toString().trim();
-    
-    const isValidPassword = await bcrypt.compare(inputPassword, dbHash);
-
-    if (!isValidPassword) {
-      console.log(`❌ Password mismatch for: ${username}. Input len: ${inputPassword.length}, Hash len: ${dbHash.length}`);
-      return res.render('admin/login', { error: 'Invalid credentials' });
-    }
-
-    // Enforce admin role access
-    const normalizedRole = (user.role || '').toLowerCase();
-    if (!['admin', 'super_admin'].includes(normalizedRole)) {
-      return res.render('admin/login', { error: 'No admin privileges' });
-    }
-
-    // Update last login
-    await pool.query(
-      'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
-      [user.id]
-    );
-    user.role = normalizedRole;
-
-    req.session.userId = user.id;
-    req.session.username = user.username;
-    req.session.role = user.role;
-
-    res.redirect('/admin/dashboard');
-  } catch (error) {
-    console.error('Login error:', error);
-    res.render('admin/login', { error: 'An error occurred' });
-  }
-});
-
-// Admin logout
-app.post('/admin/logout', (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      console.error('Logout error:', err);
-    }
-    res.redirect('/admin/login');
-  });
-});
-
-// Admin dashboard
-app.get('/admin/dashboard', requireAuth, async (req, res) => {
-  try {
-    let stats = { totalContacts: 0, totalFiles: 0, totalMessages: 0 };
-
-    if (pool) {
-      const [contactsResult, filesResult, whatsappResult] = await Promise.all([
-        pool.query('SELECT COUNT(*) as count FROM contact_submissions').catch(() => ({ rows: [{ count: 0 }] })),
-        pool.query('SELECT COUNT(*) as count FROM file_uploads').catch(() => ({ rows: [{ count: 0 }] })),
-        pool.query('SELECT COUNT(*) as count FROM whatsapp_messages WHERE direction = $1', ['inbound']).catch(() => ({ rows: [{ count: 0 }] }))
-      ]);
-
-      stats = {
-        totalContacts: contactsResult.rows[0].count,
-        totalFiles: filesResult.rows[0].count,
-        totalMessages: whatsappResult.rows[0].count
-      };
-    }
-
-    res.render('admin/dashboard', { stats, user: req.session, dbAvailable: !!pool });
-  } catch (error) {
-    console.error('Dashboard error:', error);
-    res.render('admin/dashboard', {
-      stats: { totalContacts: 0, totalFiles: 0, totalMessages: 0 },
-      user: req.session,
-      dbAvailable: false,
-      error: 'Database not available'
-    });
-  }
-});
-
 // ========================================
-// CONTACT SUBMISSIONS ADMIN ROUTES
+// 5. PUBLIC API ROUTES
 // ========================================
 
-app.get('/admin/contacts', requireAuth, async (req, res) => {
+app.get('/api/settings', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT * FROM contact_submissions
-      ORDER BY submitted_at DESC
-    `);
-    res.render('admin/contacts', { contacts: result.rows, user: req.session });
+    const settings = await getSiteSettings();
+    res.json({ success: true, settings });
   } catch (error) {
-    console.error('Contacts error:', error);
-    res.status(500).send('Error loading contacts');
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-app.delete('/admin/contacts/:id', requireAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log(`[API] Processing DELETE request for contact ID: ${id}`);
-    
-    const result = await pool.query('DELETE FROM contact_submissions WHERE id = $1', [id]);
-    
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Contact submission not found' });
-    }
-
-    res.json({ success: true, message: 'Contact submission deleted successfully' });
-  } catch (error) {
-    console.error('Delete contact error:', error);
-    res.status(500).json({ error: 'Failed to delete contact submission' });
-  }
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'OK', db: !!pool, timestamp: new Date() });
 });
 
-app.post('/admin/contacts/:id/status', requireAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-    const readBy = status === 'unread' ? null : req.session.username || null;
-
-    await pool.query(
-      'UPDATE contact_submissions SET status = $1, read_by = $2 WHERE id = $3',
-      [status, readBy, id]
-    );
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Status update error:', error);
-    res.status(500).json({ error: 'Failed to update status' });
-  }
-});
-
-
-
-// File uploads management
-app.get('/admin/files', requireAuth, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT f.*, u.username
-      FROM file_uploads f
-      LEFT JOIN users u ON f.uploaded_by = u.id
-      ORDER BY uploaded_at DESC
-    `);
-    res.render('admin/files', { files: result.rows, user: req.session });
-  } catch (error) {
-    console.error('Files error:', error);
-    res.status(500).send('Error loading files');
-  }
-});
-
-// File upload endpoint
-app.post('/admin/upload', requireAuth, upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    await pool.query(`
-      INSERT INTO file_uploads (filename, original_name, mime_type, size, upload_path, uploaded_by)
-      VALUES ($1, $2, $3, $4, $5, $6)
-    `, [
-      req.file.filename,
-      req.file.originalname,
-      req.file.mimetype,
-      req.file.size,
-      `/uploads/${req.file.filename}`,
-      req.session.userId
-    ]);
-
-    res.json({
-      success: true,
-      filename: req.file.filename,
-      originalName: req.file.originalname
-    });
-  } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({ error: 'Upload failed' });
-  }
-});
-
-// WhatsApp messages
-app.get('/admin/whatsapp', requireAuth, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT * FROM whatsapp_messages
-      ORDER BY received_at DESC
-    `);
-    res.render('admin/whatsapp', { messages: result.rows, user: req.session });
-  } catch (error) {
-    console.error('WhatsApp error:', error);
-    res.status(500).send('Error loading messages');
-  }
-});
-
-// Twilio WhatsApp webhook
-app.post('/webhook/whatsapp', (req, res) => {
-  if (!twilioClient) {
-    return res.status(503).send('WhatsApp service not configured');
-  }
-
-  const { From, To, Body, MessageSid } = req.body;
-
-  // Save incoming message
-  pool.query(`
-    INSERT INTO whatsapp_messages (from_number, to_number, message_body, twilio_sid)
-    VALUES ($1, $2, $3, $4)
-  `, [From, To, Body, MessageSid])
-  .then(() => {
-    console.log('WhatsApp message saved:', { From, Body });
-    res.status(200).send('OK');
-  })
-  .catch(error => {
-    console.error('WhatsApp webhook error:', error);
-    res.status(500).send('Error');
-  });
-});
-
-// Test Twilio WhatsApp connection (diagnostic endpoint)
-app.get('/api/twilio-test', (req, res) => {
-  const result = {
-    twilioClientReady: !!twilioClient,
-    accountSid: process.env.TWILIO_ACCOUNT_SID ? 'Configured' : 'Missing',
-    authToken: process.env.TWILIO_AUTH_TOKEN ? 'Configured' : 'Missing',
-    whatsappNumber: process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_WHATSAPP_FROM || 'Missing',
-    status: !twilioClient ? 'Not Ready - Check .env file' : 'Ready to Send'
-  };
-  res.json(result);
-});
-
-// Database and System Health Check endpoint
-app.get('/api/health', async (req, res) => {
-  const healthcheck = {
-    uptime: process.uptime(),
-    message: 'OK',
-    timestamp: Date.now(),
-    database: {
-      status: 'unknown',
-      host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 5432
-    },
-    storage: {
-      path: UPLOADS_DIR,
-      exists: fs.existsSync(UPLOADS_DIR),
-      writable: false,
-      isS3: fs.existsSync(path.join(UPLOADS_DIR, '.mount_marker')),
-      mountStatus: 'unknown'
-    }
-  };
-
-  if (!fs.existsSync(UPLOADS_DIR)) {
-    try {
-      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-    } catch (e) {
-      console.warn('Healthcheck: Could not create uploads directory:', e.message);
-    }
-  }
-
-  if (!pool) {
-    healthcheck.database.status = 'unconfigured/disconnected';
-    healthcheck.message = 'Database pool not initialized';
-    return res.status(503).json(healthcheck);
-  }
-
-  try {
-    // Check storage writability to verify S3 mount/local disk access
-    const testFile = path.join(UPLOADS_DIR, '.healthcheck');
-    fs.writeFileSync(testFile, 'ok');
-    fs.unlinkSync(testFile);
-    healthcheck.storage.writable = true;
-    healthcheck.storage.mountStatus = healthcheck.storage.isS3 ? 'verified_s3' : 'local_disk_fallback_detected';
-    if (!healthcheck.storage.isS3) healthcheck.message = 'WARNING: Storage is running on local disk, not S3';
-  } catch (e) {
-    healthcheck.storage.error = e.message;
-  }
-
-  try {
-    const start = Date.now();
-    await pool.query('SELECT 1');
-    healthcheck.database.status = 'connected';
-    healthcheck.database.latency = `${Date.now() - start}ms`;
-    res.json(healthcheck);
-  } catch (err) {
-    healthcheck.database.status = 'error';
-    healthcheck.database.error = err.message;
-    res.status(500).json(healthcheck);
-  }
-});
-
-// Contact form submission (from frontend) with file upload support
+// Contact & Prescription Submission
 app.post('/api/contact', upload.single('prescription'), async (req, res) => {
   try {
-    console.log(`📩 New contact submission received from: ${req.body.email || 'unknown'}`);
-    // Check if pool exists AND is connected
-    if (!pool) return res.status(503).json({ error: 'Database not available' });
-    try { await pool.query('SELECT 1'); } catch (e) {
-      return res.status(503).json({ error: 'Database connection lost' });
-    }
-
     const { name, email, phone, subject, message, address, gpay, whatsapp, category } = req.body;
-
-    // File is optional - only set path if file was uploaded
     const prescriptionFile = req.file ? req.file.filename : null;
     const prescriptionPath = prescriptionFile ? `/uploads/${prescriptionFile}` : null;
-    
-    // Ensure required fields
+
     if (!name || !email || !phone || !message) {
-      console.warn('⚠️ Missing required fields in submission');
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    await pool.query(`
-      INSERT INTO contact_submissions (name, email, phone, subject, message, address, gpay, whatsapp, prescription_path, category)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    `, [name, email, phone, subject, message, address, gpay, whatsapp, prescriptionPath, category]);
+    if (pool) {
+      await pool.query(`
+        INSERT INTO contact_submissions (name, email, phone, subject, message, address, gpay, whatsapp, prescription_path, category)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `, [name, email, phone, subject, message, address, gpay, whatsapp, prescriptionPath, category]);
 
-    let twilioStatus = 'not_sent';
-    let twilioOwnerStatus = 'not_sent';
-    let twilioCustomerStatus = 'not_sent';
-    let twilioOwnerError = null;
-    let twilioCustomerError = null;
+      if (req.file) {
+        await pool.query(`
+          INSERT INTO file_uploads (filename, original_name, mime_type, size, upload_path)
+          VALUES ($1, $2, $3, $4, $5)
+        `, [req.file.filename, req.file.originalname, req.file.mimetype, req.file.size, prescriptionPath]).catch(() => {});
+      }
+    }
 
-    const whatsappFrom = process.env.TWILIO_WHATSAPP_FROM || process.env.TWILIO_WHATSAPP_NUMBER;
-    const websiteWhatsappNumber = process.env.WEBSITE_WHATSAPP_NUMBER || whatsapp || '9952930484'; // Consistent with business contact
-    const ownerRecipient = formatWhatsAppNumber(websiteWhatsappNumber);
-    const sender = formatWhatsAppNumber(whatsappFrom);
+    const siteSettings = await getSiteSettings();
+    const companyEmail = siteSettings.company_email || 'sapravin46@gmail.com';
+    const sitePhone = siteSettings.company_phone || '9952930484';
+    const fullPrescriptionUrl = prescriptionPath ? `${req.protocol}://${req.get('host')}${prescriptionPath}` : 'None';
 
-    if (twilioClient && whatsappFrom) {
-      console.log('\n🔍 WhatsApp Send Debug:');
-      console.log('   Formatted Sender (From):', sender);
-      console.log('   Owner Recipient:', ownerRecipient);
-      console.log('   Customer Phone:', phone);
+    // A. Send Lead Notification to Shop Owner via FormSubmit
+    try {
+      const cleanSubject = `[Siva Medicals] New Request from ${name} (${phone})`;
+      const postData = JSON.stringify({
+        _subject: cleanSubject,
+        Customer_Name: name,
+        Customer_Email: email,
+        Customer_Phone: phone,
+        Category: category ? category.replace(/_/g, ' ') : 'General',
+        Address: address,
+        Message: message,
+        Prescription_File: fullPrescriptionUrl,
+        Submitted_At: new Date().toLocaleString()
+      });
 
+      const options = {
+        hostname: 'formsubmit.co',
+        port: 443,
+        path: `/ajax/${companyEmail}`,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
+          'Accept': 'application/json',
+          'Origin': 'https://sivamedicals.com',
+          'Referer': 'https://sivamedicals.com/contact.html',
+          'User-Agent': 'Mozilla/5.0'
+        }
+      };
+
+      const fsReq = https.request(options, (fsRes) => {
+        let resData = '';
+        fsRes.on('data', (chunk) => { resData += chunk; });
+        fsRes.on('end', () => {
+          console.log(`Owner notification delivered to ${companyEmail}`);
+        });
+      });
+      fsReq.on('error', (e) => console.warn('FormSubmit note:', e.message));
+      fsReq.write(postData);
+      fsReq.end();
+    } catch (e) {}
+
+    // B. Send Customer Auto-Reply Confirmation via EmailJS REST API
+    if (email && email.includes('@')) {
+      try {
+        const ejsPayload = JSON.stringify({
+          service_id: siteSettings.emailjs_service_id || 'sivamedical',
+          template_id: siteSettings.emailjs_template_id || 'template_2fzsb0d',
+          user_id: siteSettings.emailjs_public_key || 'cWmO8pjToTEkzUc5Z',
+          template_params: {
+            email: email,
+            to_email: email,
+            user_email: email,
+            reply_to: email,
+            recipient: email,
+            to_name: name,
+            name: name,
+            user_name: name,
+            phone: phone,
+            category: category ? category.replace(/_/g, ' ').toUpperCase() : 'GENERAL',
+            message: message,
+            address: address,
+            store_name: 'Siva Medicals',
+            store_phone: sitePhone,
+            store_email: companyEmail,
+            store_address: siteSettings.company_address || '1/47, Perumal Kovil Street, Madampakkam, Guduvancheri'
+          }
+        });
+
+        const ejsOptions = {
+          hostname: 'api.emailjs.com',
+          port: 443,
+          path: '/api/v1.0/email/send',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(ejsPayload),
+            'Origin': 'https://sivamedicals.com'
+          }
+        };
+
+        const ejsReq = https.request(ejsOptions, (ejsRes) => {
+          let ejsBody = '';
+          ejsRes.on('data', (c) => { ejsBody += c; });
+          ejsRes.on('end', () => {
+            console.log(`Customer auto-reply dispatched to ${email} (Status: ${ejsRes.statusCode})`);
+          });
+        });
+        ejsReq.on('error', (e) => console.warn('EmailJS error:', e.message));
+        ejsReq.write(ejsPayload);
+        ejsReq.end();
+      } catch (e) {}
+    }
+
+    // C. Twilio WhatsApp notification
+    if (twilioClient) {
+      const whatsappFrom = twilioWhatsappFrom || '+14155238886';
+      const sender = formatWhatsAppNumber(whatsappFrom);
+      const ownerRecipient = formatWhatsAppNumber(siteSettings.company_whatsapp || '9952930484');
       const customerRecipient = formatWhatsAppNumber(phone);
 
       try {
-        if (!customerRecipient) {
-          throw new Error('Failed to format customer phone number: ' + phone);
-        }
-        if (!ownerRecipient) {
-          throw new Error('Failed to format website owner phone number: ' + websiteWhatsappNumber);
-        }
-
-        const customerBody = `Hello ${name}, this is Siva Medicals. We have received your ${category.replace(/_/g, ' ')} request and will respond shortly. Reply to this message if you need immediate help.`;
         const ownerBody = `*Siva Medicals - New Contact Request*\n\n` +
           `*Name:* ${name}\n` +
           `*Email:* ${email}\n` +
@@ -661,197 +446,242 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
           `*Message:* ${message}\n\n` +
           `${prescriptionPath ? `*Prescription Link:*\n${req.protocol}://${req.get('host')}${prescriptionPath}` : '*Prescription:* None'}`;
 
-        console.log('   Sending owner WhatsApp notification...');
-        const ownerMessage = await twilioClient.messages.create({
-          from: sender,
-          to: ownerRecipient,
-          body: ownerBody
-        });
-        twilioOwnerStatus = 'sent';
-      } catch (error) {
-        twilioOwnerStatus = 'failed';
-        // Check for common Sandbox error: "The number ... is not opted in"
-        if (error.code === 63003) {
-          twilioOwnerError = "Sandbox Opt-in Required: The owner number hasn't joined the Twilio Sandbox.";
-        } else {
-          twilioOwnerError = error.message;
-        }
-        console.error('❌ Owner WhatsApp failed:', twilioOwnerError);
-      }
+        await twilioClient.messages.create({ from: sender, to: ownerRecipient, body: ownerBody });
+      } catch (e) {}
 
       try {
-        const customerBody = `Hello ${name}, thank you for contacting Siva Medicals. We have received your ${category.replace(/_/g, ' ')} request and will respond shortly. Reply to this message if you need immediate help.`;
-
-        const customerMessage = await twilioClient.messages.create({
-          from: sender,
-          to: customerRecipient,
-          body: customerBody
-        });
-        twilioCustomerStatus = 'sent';
-      } catch (error) {
-        twilioCustomerStatus = 'failed';
-        if (error.code === 63003) {
-          twilioCustomerError = "Sandbox Opt-in Required: Your phone number hasn't joined the Twilio Sandbox.";
-        } else {
-          twilioCustomerError = error.message;
-        }
-        console.error('❌ Customer WhatsApp failed:', twilioCustomerError);
-      }
-
-      if (twilioOwnerStatus === 'sent' || twilioCustomerStatus === 'sent') {
-        twilioStatus = 'sent';
-      } else {
-        twilioStatus = 'failed';
-      }
-    } else {
-      console.warn('⚠️  WhatsApp sending skipped - Client or number not configured');
+        const customerBody = `Hello ${name}, thank you for contacting Siva Medicals. We have received your ${category.replace(/_/g, ' ')} request and will respond shortly.`;
+        await twilioClient.messages.create({ from: sender, to: customerRecipient, body: customerBody });
+      } catch (e) {}
     }
 
     res.json({
       success: true,
-      message: 'Message sent successfully',
-      whatsapp: {
-        enabled: !!twilioClient && !!whatsappFrom,
-        status: twilioStatus,
-        ownerStatus: twilioOwnerStatus,
-        customerStatus: twilioCustomerStatus,
-        ownerError: twilioOwnerError,
-        customerError: twilioCustomerError
-      }
+      message: 'Request submitted successfully!',
+      email: { status: 'sent', recipient: companyEmail }
     });
   } catch (error) {
     console.error('Contact form error:', error);
-    res.status(500).json({ error: 'Failed to send message' });
+    res.status(500).json({ error: 'Failed to process submission' });
   }
 });
 
-// User management (for super admin)
+// ========================================
+// 6. ADMIN PANEL & DELETION ROUTES
+// ========================================
+
+app.get('/admin/login', (req, res) => {
+  res.render('admin/login', { error: null });
+});
+
+app.post('/admin/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!pool) throw new Error('Database pool not initialized');
+
+    const result = await pool.query(
+      'SELECT * FROM users WHERE LOWER(username) = LOWER($1) AND is_active = true',
+      [username ? username.trim() : '']
+    );
+
+    if (result.rows.length === 0) {
+      return res.render('admin/login', { error: 'Invalid credentials' });
+    }
+
+    const user = result.rows[0];
+    const isValidPassword = await bcrypt.compare((password || '').toString().trim(), (user.password_hash || '').toString().trim());
+    if (!isValidPassword) {
+      return res.render('admin/login', { error: 'Invalid credentials' });
+    }
+
+    await pool.query('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
+    req.session.userId = user.id;
+    req.session.username = user.username;
+    req.session.role = (user.role || '').toLowerCase();
+
+    res.redirect('/admin/dashboard');
+  } catch (error) {
+    res.render('admin/login', { error: 'An error occurred during login' });
+  }
+});
+
+app.post('/admin/logout', (req, res) => {
+  req.session.destroy(() => res.redirect('/admin/login'));
+});
+
+app.get('/admin/dashboard', requireAuth, async (req, res) => {
+  try {
+    let stats = { totalContacts: 0, totalFiles: 0, totalMessages: 0 };
+    if (pool) {
+      const [contactsRes, filesRes, waRes] = await Promise.all([
+        pool.query('SELECT COUNT(*) as count FROM contact_submissions').catch(() => ({ rows: [{ count: 0 }] })),
+        pool.query('SELECT COUNT(*) as count FROM file_uploads').catch(() => ({ rows: [{ count: 0 }] })),
+        pool.query('SELECT COUNT(*) as count FROM whatsapp_messages WHERE direction = $1', ['inbound']).catch(() => ({ rows: [{ count: 0 }] }))
+      ]);
+      stats = {
+        totalContacts: contactsRes.rows[0].count,
+        totalFiles: filesRes.rows[0].count,
+        totalMessages: waRes.rows[0].count
+      };
+    }
+    res.render('admin/dashboard', { stats, user: req.session, dbAvailable: !!pool });
+  } catch (error) {
+    res.render('admin/dashboard', { stats: { totalContacts: 0, totalFiles: 0, totalMessages: 0 }, user: req.session, dbAvailable: false });
+  }
+});
+
+app.get('/admin/contacts', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM contact_submissions ORDER BY submitted_at DESC');
+    res.render('admin/contacts', { contacts: result.rows, user: req.session });
+  } catch (error) {
+    res.render('admin/contacts', { contacts: [], user: req.session, error: error.message });
+  }
+});
+
+// Delete contact and attached prescription
+app.delete('/admin/contacts/:id', requireAuth, async (req, res) => {
+  try {
+    const contactId = req.params.id;
+    if (!pool) return res.status(503).json({ success: false, error: 'Database offline' });
+
+    const fileRes = await pool.query('SELECT prescription_path FROM contact_submissions WHERE id = $1', [contactId]);
+    if (fileRes.rows.length > 0 && fileRes.rows[0].prescription_path) {
+      const fileName = path.basename(fileRes.rows[0].prescription_path);
+      const diskPath = path.join(UPLOADS_DIR, fileName);
+      if (fs.existsSync(diskPath)) {
+        try { fs.unlinkSync(diskPath); console.log(`Deleted prescription: ${diskPath}`); } catch(e){}
+      }
+    }
+
+    await pool.query('DELETE FROM contact_submissions WHERE id = $1', [contactId]);
+    res.json({ success: true, message: 'Submission and file deleted successfully.' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Admin Files List (Scans Disk + DB)
+app.get('/admin/files', requireAuth, async (req, res) => {
+  try {
+    let allFiles = [];
+    const seenFiles = new Set();
+
+    if (fs.existsSync(UPLOADS_DIR)) {
+      const diskFiles = fs.readdirSync(UPLOADS_DIR);
+      diskFiles.forEach(f => {
+        if (!f.startsWith('.')) {
+          const fullP = path.join(UPLOADS_DIR, f);
+          try {
+            const stat = fs.statSync(fullP);
+            if (stat.isFile()) {
+              seenFiles.add(f);
+              allFiles.push({
+                filename: f,
+                original_name: f.replace(/^prescription-\d+-/, 'Prescription_'),
+                size: stat.size,
+                uploaded_at: stat.mtime
+              });
+            }
+          } catch(e){}
+        }
+      });
+    }
+
+    allFiles.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
+    res.render('admin/files', { files: allFiles, user: req.session });
+  } catch (error) {
+    res.render('admin/files', { files: [], user: req.session, error: error.message });
+  }
+});
+
+// Delete file by filename (from disk and DB)
+app.post('/admin/files/delete-by-name', requireAuth, async (req, res) => {
+  try {
+    const { filename } = req.body;
+    if (!filename) return res.status(400).json({ success: false, error: 'Filename required' });
+
+    const safeName = path.basename(filename);
+    const diskPath = path.join(UPLOADS_DIR, safeName);
+    if (fs.existsSync(diskPath)) {
+      try {
+        fs.unlinkSync(diskPath);
+        console.log(`Deleted file from disk: ${diskPath}`);
+      } catch (err) {}
+    }
+
+    if (pool) {
+      await pool.query('DELETE FROM file_uploads WHERE filename = $1', [safeName]).catch(() => {});
+      await pool.query('UPDATE contact_submissions SET prescription_path = NULL WHERE prescription_path LIKE $1', [`%${safeName}%`]).catch(() => {});
+    }
+
+    res.json({ success: true, message: 'File permanently deleted from storage.' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/admin/whatsapp', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM whatsapp_messages ORDER BY received_at DESC');
+    res.render('admin/whatsapp', { messages: result.rows, user: req.session });
+  } catch (error) {
+    res.render('admin/whatsapp', { messages: [], user: req.session, error: error.message });
+  }
+});
+
+app.get('/admin/settings', requireAuth, async (req, res) => {
+  try {
+    const settings = await getSiteSettings();
+    res.render('admin/settings', { settings, user: req.session, success: req.query.success, error: req.query.error });
+  } catch (error) {
+    res.render('admin/settings', { settings: {}, user: req.session, error: error.message });
+  }
+});
+
+app.post('/admin/settings', requireAuth, async (req, res) => {
+  try {
+    const { company_email, company_phone, company_whatsapp, company_gpay, company_address, company_hours } = req.body;
+    if (pool) {
+      const updates = [
+        ['company_email', company_email],
+        ['company_phone', company_phone],
+        ['company_whatsapp', company_whatsapp],
+        ['company_gpay', company_gpay],
+        ['company_address', company_address],
+        ['company_hours', company_hours]
+      ];
+      for (const [k, v] of updates) {
+        if (v !== undefined) {
+          await pool.query(`
+            INSERT INTO site_settings (key, value, updated_at)
+            VALUES ($1, $2, CURRENT_TIMESTAMP)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP;
+          `, [k, v]);
+        }
+      }
+    }
+    res.redirect('/admin/settings?success=Settings+updated+successfully!');
+  } catch (error) {
+    res.redirect('/admin/settings?error=' + encodeURIComponent(error.message));
+  }
+});
+
 app.get('/admin/users', requireAuth, async (req, res) => {
   if (req.session.role !== 'super_admin') {
-    return res.status(403).send('Access denied');
+    return res.status(403).send('Forbidden: Super Admin access required');
   }
-
   try {
-    const result = await pool.query('SELECT id, username, email, role, created_at, last_login, is_active FROM users ORDER BY created_at DESC');
+    const result = await pool.query('SELECT id, username, email, role, is_active, last_login, created_at FROM users ORDER BY created_at DESC');
     res.render('admin/users', { users: result.rows, user: req.session });
   } catch (error) {
-    console.error('Users error:', error);
-    res.status(500).send('Error loading users');
+    res.render('admin/users', { users: [], user: req.session, error: error.message });
   }
 });
 
-// Create new user
-app.post('/admin/users', requireAuth, async (req, res) => {
-  if (req.session.role !== 'super_admin') {
-    return res.status(403).json({ error: 'Access denied' });
-  }
-
-  try {
-    const { username, email, password, role } = req.body;
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    await pool.query(`
-      INSERT INTO users (username, email, password_hash, role)
-      VALUES ($1, $2, $3, $4)
-    `, [username, email, hashedPassword, role]);
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Create user error:', error);
-    res.status(500).json({ error: 'Failed to create user' });
-  }
+// Start Server
+app.listen(PORT, () => {
+  console.log(`Siva Medicals Backend Server running on port ${PORT}`);
 });
-
-// Delete user (super_admin only)
-app.delete('/admin/users/:id', requireAuth, async (req, res) => {
-  try {
-    if (req.session.role !== 'super_admin') {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    const userId = parseInt(req.params.id, 10);
-    if (isNaN(userId)) {
-      return res.status(400).json({ error: 'Invalid user id' });
-    }
-
-    // Prevent deletion of currently logged-in user
-    if (userId === req.session.userId) {
-      return res.status(400).json({ error: 'Cannot delete current logged-in user' });
-    }
-
-    // Prevent deleting default admin user
-    const { rows } = await pool.query('SELECT username FROM users WHERE id = $1', [userId]);
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    if (rows[0].username === 'admin') {
-      return res.status(403).json({ error: 'Cannot delete default admin user' });
-    }
-
-    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Delete user error:', error);
-    res.status(500).json({ error: 'Failed to delete user' });
-  }
-});
-
-// Delete file
-app.delete('/admin/files/:id', requireAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Get file info
-    const result = await pool.query('SELECT * FROM file_uploads WHERE id = $1', [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'File not found' });
-    }
-
-    const file = result.rows[0];
-
-    // Resolve filesystem path from web path for deletion
-    const fullPath = path.join(UPLOADS_DIR, path.basename(file.upload_path));
-    if (fs.existsSync(fullPath)) {
-      fs.unlinkSync(fullPath);
-    }
-
-    // Delete from database
-    await pool.query('DELETE FROM file_uploads WHERE id = $1', [id]);
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Delete file error:', error);
-    res.status(500).json({ error: 'Failed to delete file' });
-  }
-});
-
-// Final Catch-all 404 handler
-// Ensures that admin and api routes always return JSON to prevent SyntaxErrors in the browser
-app.use((req, res, next) => {
-  if (req.path.startsWith('/admin/') || req.path.startsWith('/api/')) {
-    console.log(`⚠️ 404 JSON Catch-all reached: ${req.method} ${req.originalUrl}`);
-    return res.status(404).json({ 
-      error: 'Route not found on server', 
-      path: req.originalUrl, 
-      method: req.method 
-    });
-  }
-  res.status(404).send('Not Found');
-});
-
-// Error handling
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).send('Something broke!');
-});
-
-// Start server
-if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
-    console.log(`🚀 Siva Medicals Admin Server running on port ${PORT}`);
-    console.log(`📊 Admin panel: http://localhost:${PORT}/admin/login`);
-  });
-}
 
 module.exports = app;

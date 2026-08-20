@@ -1,36 +1,65 @@
-﻿﻿﻿﻿// ========================================
-// CONTACT FORM API SUBMISSION
-// ========================================
+// ====================================================
+// CONTACT FORM & PRESCRIPTION SUBMISSION (DYNAMIC CONFIG)
+// ====================================================
 
-document.addEventListener('DOMContentLoaded', function() {
+let EMAILJS_CONFIG = {
+  serviceId: 'sivamedical',
+  templateId: 'template_2fzsb0d',
+  publicKey: 'cWmO8pjToTEkzUc5Z'
+};
+
+document.addEventListener('DOMContentLoaded', async function() {
   const contactForm = document.getElementById('contactForm');
   const categorySelect = document.getElementById('category');
   const prescriptionFileGroup = document.getElementById('prescriptionFileGroup');
   const prescriptionFile = document.getElementById('prescriptionFile');
 
-  // Show/hide prescription file upload based on category
+  // 1. Fetch live public settings dynamically from server / .env
+  try {
+    const setRes = await fetch('/api/settings');
+    if (setRes.ok) {
+      const setData = await setRes.json();
+      if (setData.success && setData.settings) {
+        if (setData.settings.emailjs_service_id) EMAILJS_CONFIG.serviceId = setData.settings.emailjs_service_id;
+        if (setData.settings.emailjs_template_id) EMAILJS_CONFIG.templateId = setData.settings.emailjs_template_id;
+        if (setData.settings.emailjs_public_key) EMAILJS_CONFIG.publicKey = setData.settings.emailjs_public_key;
+      }
+    }
+  } catch(e) {}
+
+  // 2. Initialize EmailJS
+  if (typeof emailjs !== 'undefined' && EMAILJS_CONFIG.publicKey) {
+    try {
+      emailjs.init(EMAILJS_CONFIG.publicKey);
+      console.log('✅ EmailJS initialized dynamically');
+    } catch(e) {
+      console.debug('EmailJS init note:', e.message);
+    }
+  }
+
+  // Load live site settings dynamically
+  if (typeof loadLiveSiteSettings === 'function') {
+    loadLiveSiteSettings();
+  }
+
+  // Show/hide prescription upload based on category
   if (categorySelect) {
     categorySelect.addEventListener('change', function() {
       const val = this.value.toLowerCase();
       if (val === 'with_prescription' || val.includes('prescription')) {
-        prescriptionFileGroup.style.display = 'block';
-        prescriptionFile.required = true;
+        if (prescriptionFileGroup) prescriptionFileGroup.style.display = 'block';
+        if (prescriptionFile) prescriptionFile.required = true;
       } else {
-        prescriptionFileGroup.style.display = 'none';
-        prescriptionFile.required = false;
-        prescriptionFile.value = ''; // Clear file input
+        if (prescriptionFileGroup) prescriptionFileGroup.style.display = 'none';
+        if (prescriptionFile) {
+          prescriptionFile.required = false;
+          prescriptionFile.value = '';
+        }
       }
     });
   }
 
   if (contactForm) {
-    contactForm.addEventListener('input', function() {
-      const statusBox = document.getElementById('formMessage');
-      if (statusBox && !statusBox.classList.contains('d-none')) {
-        statusBox.classList.add('d-none');
-      }
-    });
-
     contactForm.addEventListener('submit', async function(e) {
       e.preventDefault();
 
@@ -39,10 +68,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
       const getVal = (id) => {
         const el = document.getElementById(id);
-        return el ? el.value.trim() : null;
+        return el ? el.value.trim() : '';
       };
 
-      const name = getVal('fullName');
+      const name = getVal('fullName') || getVal('name');
       const email = getVal('email');
       const phone = getVal('phone');
       const category = getVal('category');
@@ -52,70 +81,19 @@ document.addEventListener('DOMContentLoaded', function() {
       const prescriptionFileEl = document.getElementById('prescriptionFile');
       const prescriptionFileInput = prescriptionFileEl && prescriptionFileEl.files ? prescriptionFileEl.files[0] : null;
 
-      if (name === null || email === null || phone === null || category === null || address === null || message === null) {
-        console.error('Form fields missing from DOM. Check IDs: name, email, phone, category, address, message');
-        showFormStatus('Form Error: One or more fields are missing in the page. Please refresh or contact support.', 'danger');
-        return;
-      }
+      if (!name) { errors.push('Please enter your full name'); isValid = false; }
+      if (!email || !isValidEmail(email)) { errors.push('Please enter a valid email address'); isValid = false; }
+      if (!phone || !isValidPhone(phone)) { errors.push('Please enter a valid 10-digit phone number'); isValid = false; }
+      if (!category) { errors.push('Please select a category'); isValid = false; }
+      if (!address) { errors.push('Please enter your delivery/contact address'); isValid = false; }
+      if (!message || message.length < 3) { errors.push('Please enter a message or tablet name'); isValid = false; }
 
-      if (name === '') {
-        errors.push('Please enter your full name');
+      if (category.toLowerCase().includes('prescription') && !prescriptionFileInput) {
+        errors.push('Please upload a prescription image or PDF');
         isValid = false;
-      }
-
-      if (email === '') {
-        errors.push('Please enter your email address');
-        isValid = false;
-      } else if (!isValidEmail(email)) {
-        errors.push('Please enter a valid email address');
-        isValid = false;
-      }
-
-      if (phone === '') {
-        errors.push('Please enter your phone number');
-        isValid = false;
-      } else if (!isValidPhone(phone)) {
-        errors.push('Please enter a valid phone number');
-        isValid = false;
-      }
-
-      if (category === '') {
-        errors.push('Please select a category');
-        isValid = false;
-      }
-
-      if (address === '') {
-        errors.push('Please enter your address');
-        isValid = false;
-      }
-
-      if (message === '') {
-        errors.push('Please enter your message');
-        isValid = false;
-      } else if (message.length < 10) {
-        errors.push('Message must be at least 10 characters long');
-        isValid = false;
-      }
-
-      if (category.toLowerCase().includes('prescription')) {
-        if (!prescriptionFileInput) {
-          errors.push('Please upload a prescription photo');
-          isValid = false;
-        } else {
-          const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-          if (!allowedTypes.includes(prescriptionFileInput.type)) {
-            errors.push('Please upload a valid image file (JPEG, PNG, GIF)');
-            isValid = false;
-          }
-          if (prescriptionFileInput.size > 5 * 1024 * 1024) {
-            errors.push('File size must be less than 5MB');
-            isValid = false;
-          }
-        }
       }
 
       if (!isValid) {
-        contactForm.classList.add('was-validated');
         showFormErrors(errors);
         return;
       }
@@ -128,106 +106,100 @@ document.addEventListener('DOMContentLoaded', function() {
       formData.append('subject', category.replace(/_/g, ' ').toUpperCase());
       formData.append('message', message);
       formData.append('address', address);
-      formData.append('gpay', '9097732213');
-      formData.append('whatsapp', '9952930484');
 
       if (prescriptionFileInput) {
         formData.append('prescription', prescriptionFileInput);
       }
 
       const submitBtn = document.querySelector('#contactForm button[type="submit"]');
-      const originalText = submitBtn.innerHTML;
-      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Sending...';
-      submitBtn.disabled = true;
-
-      // --- API & ENVIRONMENT CONFIGURATION ---
-      const EC2_PUBLIC_IP = '18.60.246.115';
-      const S3_BUCKET = 'siva-medicals-data-hyderabad-ap-south-2';
-      const REGION = 'ap-south-2';
-      
-      // Use relative path if on EC2 (same host), otherwise use absolute HTTP URL for S3/Other hosts
-      // Important: Use the HTTP Website Endpoint of S3 to avoid Mixed Content blocks
-      const apiUrl = (window.location.hostname === EC2_PUBLIC_IP || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-        ? '/api/contact' 
-        : `http://${EC2_PUBLIC_IP}/api/contact`;
+      const originalText = submitBtn ? submitBtn.innerHTML : 'Submit Request';
+      if (submitBtn) {
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Submitting...';
+        submitBtn.disabled = true;
+      }
 
       try {
-        console.log(`🚀 Attempting submission to: ${apiUrl} from host: ${window.location.hostname}`);
-
-        const response = await fetch(apiUrl, {
+        // 1. Submit to Backend / Supabase API
+        const response = await fetch('/api/contact', {
           method: 'POST',
           body: formData
         });
 
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success) {
-            let finalMessage = 'Message sent successfully! We will contact you soon.';
-            let messageType = 'success';
+        const result = await response.json();
 
-            if (result.whatsapp && result.whatsapp.enabled) {
-              if (result.whatsapp.status === 'failed') {
-                finalMessage = 'Note: Message sent, but WhatsApp notifications failed.';
-                messageType = 'warning';
-                if (result.whatsapp.customerError && result.whatsapp.customerError.includes('Sandbox')) {
-                  finalMessage += '\n\n💡 Tip: To receive WhatsApp alerts in Sandbox mode, you must send "join gentle-river" (or your specific code) to our Twilio number first.';
-                } else if (result.whatsapp.customerError) {
-                  finalMessage += `\nError: ${result.whatsapp.customerError}`;
-                }
-              } else if (result.whatsapp.customerStatus === 'sent' && result.whatsapp.ownerStatus === 'sent') {
-                finalMessage = 'Your request has been sent and both you and our team have been notified on WhatsApp.';
-              } else if (result.whatsapp.ownerStatus === 'sent' && result.whatsapp.customerStatus !== 'sent') {
-                finalMessage = 'Your request has been received and our team has been notified. We tried to send you a WhatsApp confirmation too.';
-              } else if (result.whatsapp.customerStatus === 'sent' && result.whatsapp.ownerStatus !== 'sent') {
-                finalMessage = 'Your request has been received and a WhatsApp confirmation was sent to you.';
-              }
-            }
-            showFormStatus(finalMessage, messageType);
-
-            document.getElementById('contactForm').reset();
-            document.querySelectorAll('.is-valid, .is-invalid').forEach(el => {
-              el.classList.remove('is-valid', 'is-invalid');
+        // 2. Dispatch Automated Customer Confirmation via EmailJS
+        if (typeof emailjs !== 'undefined' && EMAILJS_CONFIG.serviceId && EMAILJS_CONFIG.templateId) {
+          try {
+            await emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, {
+              email: email,
+              to_email: email,
+              user_email: email,
+              reply_to: email,
+              recipient: email,
+              to_name: name,
+              name: name,
+              user_name: name,
+              user_phone: phone,
+              phone: phone,
+              category: category.replace(/_/g, ' ').toUpperCase(),
+              message: message,
+              address: address,
+              store_name: 'Siva Medicals',
+              store_phone: '9952930484',
+              store_email: 'sapravin46@gmail.com',
+              store_address: '1/47, Perumal Kovil Street, Madampakkam, Guduvancheri'
             });
-          } else {
-            throw new Error(result.error || 'Server error');
+            console.log('✉️ EmailJS customer confirmation sent successfully to', email);
+          } catch (ejsErr) {
+            console.warn('EmailJS customer dispatch note:', ejsErr.text || ejsErr.message);
           }
-        } else {
-          throw new Error(`Server responded with status: ${response.status}`);
-        }
-      } catch (error) {
-        console.error('Form submission error:', error);
-        
-        // Handle Mixed Content issues (HTTPS S3 -> HTTP EC2 block)
-        if (window.location.protocol === 'https:') {
-          // Construct the HTTP Static Website Hosting URL for S3
-          const websiteUrl = `http://${S3_BUCKET}.s3-website.${REGION}.amazonaws.com/contact.html`;
-          
-          showFormStatus(
-            `<strong>Action Required:</strong> You are accessing the site via a secure link (HTTPS), but the server requires an insecure connection (HTTP). <br><br>` +
-            `Please click the button below to switch to the working version of the site: <br><br>` +
-            `<a href="${websiteUrl}" class="btn btn-warning btn-dark fw-bold">Open Working Website Version</a>`, 
-            'danger'
-          );
-        } else {
-          showFormStatus('<strong>Note:</strong> We may have received your data, but the response was blocked. Please check your WhatsApp for a confirmation or contact us at 9952930484.', 'warning');
         }
 
-        const fallback = window.location.protocol === 'http:' && confirm(
-          'Unable to connect to server. Would you like to contact us directly instead?\n\n' +
-          '📞 WhatsApp: 9952930484\n\n' +
-          'Click OK to call now, or Cancel to try again later.'
-        );
+        if (response.ok && result.success) {
+          const cleanWaPhone = '9952930484';
+          const waOrderText = encodeURIComponent(`*Siva Medicals Order / Inquiry*\n\nName: ${name}\nPhone: ${phone}\nCategory: ${category}\nAddress: ${address}\nMessage: ${message}`);
+          const waUrl = `https://wa.me/91${cleanWaPhone}?text=${waOrderText}`;
 
-        if (fallback) {
-          window.location.href = 'tel:9952930484';
+          let successHtml = `
+            <div class="p-3 bg-success bg-opacity-10 border border-success rounded">
+              <h5 class="text-success fw-bold mb-2"><i class="fas fa-check-circle me-2"></i> Request Submitted Successfully!</h5>
+              <p class="mb-1">✅ An automated confirmation email has been sent to <strong>${email}</strong>.</p>
+              <p class="mb-2">✅ Our pharmacy team has received your details and will contact you promptly at <strong>${phone}</strong>.</p>
+              <div class="mt-3 pt-2 border-top d-flex gap-2 flex-wrap">
+                <a href="${waUrl}" target="_blank" class="btn btn-success btn-sm fw-bold">
+                  <i class="fab fa-whatsapp me-2"></i> Chat with Pharmacy on WhatsApp
+                </a>
+              </div>
+            </div>
+          `;
+
+          showFormStatus(successHtml, 'success');
+          contactForm.reset();
+          if (prescriptionFileGroup) prescriptionFileGroup.style.display = 'none';
+        } else {
+          showFormStatus(`<strong>Error:</strong> ${result.error || 'Unable to submit request. Please call us directly.'}`, 'danger');
         }
+      } catch (err) {
+        console.error('Submission error:', err);
+        showFormStatus('<strong>Network Error:</strong> Server unreachable. Please call or WhatsApp us directly at 9952930484.', 'danger');
       } finally {
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
+        if (submitBtn) {
+          submitBtn.innerHTML = originalText;
+          submitBtn.disabled = false;
+        }
       }
     });
   }
 });
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function isValidPhone(phone) {
+  const digits = phone.replace(/[^0-9]/g, '');
+  return digits.length >= 10;
+}
 
 function showFormStatus(message, type = 'success') {
   const statusBox = document.getElementById('formMessage');
@@ -238,58 +210,10 @@ function showFormStatus(message, type = 'success') {
 }
 
 function showFormErrors(errors) {
-  const errorMessage = errors.join('\n');
-  showFormStatus('Please fix the following errors:\n\n' + errorMessage, 'danger');
-}
-
-function isValidEmail(email) {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    return false;
-  }
-
-  const parts = email.split('@');
-  const localPart = parts[0];
-  const domain = parts[1];
-  if (!localPart || !domain) {
-    return false;
-  }
-  if (localPart.startsWith('.') || localPart.endsWith('.')) {
-    return false;
-  }
-  if (localPart.includes('..') || domain.includes('..')) {
-    return false;
-  }
-  if (!domain.includes('.')) {
-    return false;
-  }
-  const domainParts = domain.split('.');
-  if (domainParts.some(part => !part || part.length < 1)) {
-    return false;
-  }
-  return true;
-}
-
-function isValidPhone(phone) {
-  const cleaned = phone.replace(/\D/g, '');
-  if (cleaned.length !== 10 && cleaned.length !== 12 && cleaned.length !== 13) {
-    return false;
-  }
-  if (cleaned.length === 10) {
-    const firstDigit = parseInt(cleaned[0], 10);
-    if (firstDigit < 6 || firstDigit > 9) {
-      return false;
-    }
-  }
-  if (cleaned.length === 12 || cleaned.length === 13) {
-    if (!cleaned.startsWith('91')) {
-      return false;
-    }
-    const remainingDigits = cleaned.substring(2);
-    const firstDigitAfterCode = parseInt(remainingDigits[0], 10);
-    if (firstDigitAfterCode < 6 || firstDigitAfterCode > 9) {
-      return false;
-    }
-  }
-  return true;
+  const statusBox = document.getElementById('formMessage');
+  if (!statusBox) return;
+  const list = errors.map(e => `<li>${e}</li>`).join('');
+  statusBox.innerHTML = `<strong>Please fix the following issues:</strong><ul class="mb-0 mt-2">${list}</ul>`;
+  statusBox.className = 'alert alert-danger';
+  statusBox.classList.remove('d-none');
 }

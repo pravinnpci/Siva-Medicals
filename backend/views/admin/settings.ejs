@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Site Settings - Siva Medicals Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .sidebar { background: #343a40; min-height: 100vh; color: white; }
+        .sidebar .nav-link { color: rgba(255,255,255,.75); padding: 12px 20px; margin: 5px 0; border-radius: 5px; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { color: white; background: #d4a843; }
+        .sidebar .nav-link i { margin-right: 10px; width: 20px; }
+        .settings-card { background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); padding: 25px; margin-bottom: 25px; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 px-0 sidebar">
+                <div class="p-3">
+                    <h5 class="text-center mb-4 d-flex align-items-center justify-content-center gap-2">
+                        <img src="/images/Logo- Sivamedical.png" alt="Siva Medicals Logo" style="height:28px; width:auto;">
+                        Siva Medicals
+                    </h5>
+                                        <nav class="nav flex-column gap-1">
+                        <a class="nav-link  d-flex align-items-center" href="/admin/dashboard">
+                            <i class="fas fa-tachometer-alt me-2" style="width: 20px;"></i> <span>Dashboard</span>
+                        </a>
+                        <a class="nav-link  d-flex align-items-center" href="/admin/contacts">
+                            <i class="fas fa-envelope me-2" style="width: 20px;"></i> <span>Contact Forms</span>
+                        </a>
+                        <a class="nav-link  d-flex align-items-center" href="/admin/files">
+                            <i class="fas fa-file-upload me-2" style="width: 20px;"></i> <span>File Uploads</span>
+                        </a>
+                        <a class="nav-link  d-flex align-items-center" href="/admin/whatsapp">
+                            <i class="fab fa-whatsapp me-2" style="width: 20px;"></i> <span>WhatsApp</span>
+                        </a>
+                        <a class="nav-link active d-flex align-items-center" href="/admin/settings">
+                            <i class="fas fa-cog me-2" style="width: 20px;"></i> <span>Site Settings</span>
+                        </a>
+                        <% if (user && user.role === 'super_admin') { %>
+                        <a class="nav-link  d-flex align-items-center" href="/admin/users">
+                            <i class="fas fa-users me-2" style="width: 20px;"></i> <span>Users</span>
+                        </a>
+                        <% } %>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10 ms-sm-auto px-4 py-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2"><i class="fas fa-cog text-warning me-2"></i> Company & Contact Settings</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <span class="badge bg-success p-2">Live Dynamic Updates</span>
+                    </div>
+                </div>
+
+                <% if (typeof success !== 'undefined' && success) { %>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="fas fa-check-circle me-2"></i> <%= success %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                <% } %>
+
+                <% if (typeof error !== 'undefined' && error) { %>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-triangle me-2"></i> <%= error %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                <% } %>
+
+                <form action="/admin/settings" method="POST">
+                    <div class="row">
+                        <!-- Company Contact Information -->
+                        <div class="col-lg-6">
+                            <div class="settings-card">
+                                <h4 class="mb-4 text-primary"><i class="fas fa-address-card me-2"></i> General Contact Info</h4>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold"><i class="fas fa-envelope text-danger me-1"></i> Company Official Email</label>
+                                    <input type="email" class="form-control" name="company_email" value="<%= settings.company_email || 'sapravin46@gmail.com' %>" required>
+                                    <small class="text-muted">Contact submissions & orders will be delivered to this email.</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold"><i class="fas fa-phone text-success me-1"></i> Phone Number</label>
+                                    <input type="text" class="form-control" name="company_phone" value="<%= settings.company_phone || '9952930484' %>" required>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold"><i class="fab fa-whatsapp text-success me-1"></i> WhatsApp Number</label>
+                                    <input type="text" class="form-control" name="company_whatsapp" value="<%= settings.company_whatsapp || '9952930484' %>" required>
+                                    <small class="text-muted">Order alerts and WhatsApp chat button link to this number.</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold"><i class="fas fa-wallet text-info me-1"></i> GPay Number</label>
+                                    <input type="text" class="form-control" name="company_gpay" value="<%= settings.company_gpay || '9097732213' %>">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Address & Notifications -->
+                        <div class="col-lg-6">
+                            <div class="settings-card">
+                                <h4 class="mb-4 text-primary"><i class="fas fa-map-marked-alt me-2"></i> Pharmacy Location & Alerts</h4>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold"><i class="fas fa-map-marker-alt text-danger me-1"></i> Store Address</label>
+                                    <textarea class="form-control" name="company_address" rows="3" required><%= settings.company_address || '1/47, Perumal Kovil Street, Madampakkam - Guduvancheri, Kanchipuram Dist - 603 202' %></textarea>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold"><i class="fas fa-clock text-warning me-1"></i> Store Hours</label>
+                                    <input type="text" class="form-control" name="company_hours" value="<%= settings.company_hours || 'Mon - Sun, 8 AM - 10 PM' %>">
+                                </div>
+
+                                <hr>
+                                <div class="alert alert-info py-2">
+                                    <small><i class="fas fa-info-circle me-1"></i> Changes saved here will immediately appear dynamically across all pages on your live website.</small>
+                                </div>
+
+                                <button type="submit" class="btn btn-warning btn-lg w-100 fw-bold shadow-sm">
+                                    <i class="fas fa-save me-2"></i> Save All Settings
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
