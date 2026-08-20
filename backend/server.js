@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const https = require('https');
 const cors = require('cors');
 
@@ -18,34 +19,15 @@ const PORT = process.env.SIVA_PORT || process.env.PORT || 3001;
 // ========================================
 let pool = null;
 try {
-  const dbUrl = process.env.SIVA_DATABASE_URL || process.env.DATABASE_URL;
-  const dbHost = process.env.SIVA_DB_HOST || process.env.DB_HOST;
+  const dbUrl = process.env.SIVA_DATABASE_URL || process.env.DATABASE_URL || 'postgresql://postgres.vdccpnmlnppqdxgdhuok:siva-medicals01@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres';
+  
+  pool = new Pool({
+    connectionString: dbUrl,
+    ssl: { rejectUnauthorized: false },
+    max: 10,
+    idleTimeoutMillis: 30000
+  });
 
-  let connectionConfig;
-  if (dbUrl) {
-    connectionConfig = {
-      connectionString: dbUrl,
-      ssl: { rejectUnauthorized: false }
-    };
-  } else if (dbHost && dbHost !== 'localhost') {
-    connectionConfig = {
-      user: process.env.SIVA_DB_USER || 'postgres',
-      host: dbHost,
-      database: process.env.SIVA_DB_NAME || 'postgres',
-      password: process.env.SIVA_DB_PASSWORD || 'admin',
-      port: parseInt(process.env.SIVA_DB_PORT || '5432', 10),
-    };
-  } else {
-    connectionConfig = {
-      user: process.env.SIVA_DB_USER || 'postgres',
-      host: 'localhost',
-      database: process.env.SIVA_DB_NAME || 'postgres',
-      password: process.env.SIVA_DB_PASSWORD || 'admin',
-      port: parseInt(process.env.SIVA_DB_PORT || '5432', 10),
-    };
-  }
-
-  pool = new Pool(connectionConfig);
   pool.on('error', (err) => console.error('Unexpected error on idle DB client:', err.message));
 
   const initializeSchema = async () => {
@@ -205,9 +187,13 @@ app.use(express.urlencoded({ extended: true }));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-const UPLOADS_DIR = fs.existsSync('/app/uploads')
-  ? '/app/uploads'
-  : path.resolve(process.cwd(), 'uploads');
+const UPLOADS_DIR = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'siva_uploads')
+  : (fs.existsSync('/app/uploads') ? '/app/uploads' : path.resolve(process.cwd(), 'uploads'));
+
+if (!fs.existsSync(UPLOADS_DIR)) {
+  try { fs.mkdirSync(UPLOADS_DIR, { recursive: true }); } catch(e){}
+}
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/images', express.static(path.join(__dirname, 'images')));
@@ -216,7 +202,7 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     if (!fs.existsSync(UPLOADS_DIR)) {
-      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+      try { fs.mkdirSync(UPLOADS_DIR, { recursive: true }); } catch(e){}
     }
     cb(null, UPLOADS_DIR);
   },
@@ -607,9 +593,11 @@ app.get('/admin/users', requireAuth, async (req, res) => {
   }
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`Siva Medicals Backend Server running on port ${PORT}`);
-});
+// Start Server locally if not running as serverless function
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Siva Medicals Backend Server running on port ${PORT}`);
+  });
+}
 
 module.exports = app;
