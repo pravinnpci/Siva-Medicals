@@ -279,10 +279,9 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
 
     const siteSettings = await getSiteSettings();
     const companyEmail = siteSettings.company_email || 'sapravin46@gmail.com';
-    const sitePhone = siteSettings.company_phone || '9952930484';
     const fullPrescriptionUrl = prescriptionPath ? `${req.protocol}://${req.get('host')}${prescriptionPath}` : 'None';
 
-    // A. Send Lead Notification to Shop Owner via FormSubmit
+    // Send Lead Notification to Shop Owner via FormSubmit
     try {
       const cleanSubject = `[Siva Medicals] New Request from ${name} (${phone})`;
       const postData = JSON.stringify({
@@ -323,59 +322,6 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
       fsReq.write(postData);
       fsReq.end();
     } catch (e) {}
-
-    // B. Send Customer Auto-Reply Confirmation via EmailJS REST API
-    if (email && email.includes('@')) {
-      try {
-        const ejsPayload = JSON.stringify({
-          service_id: siteSettings.emailjs_service_id || 'sivamedical',
-          template_id: siteSettings.emailjs_template_id || 'template_2fzsb0d',
-          user_id: siteSettings.emailjs_public_key || 'cWmO8pjToTEkzUc5Z',
-          template_params: {
-            email: email,
-            to_email: email,
-            user_email: email,
-            reply_to: email,
-            recipient: email,
-            to_name: name,
-            name: name,
-            user_name: name,
-            phone: phone,
-            category: category ? category.replace(/_/g, ' ').toUpperCase() : 'GENERAL',
-            message: message,
-            address: address,
-            prescription_url: fullPrescriptionUrl,
-            store_name: 'Siva Medicals',
-            store_phone: sitePhone,
-            store_email: companyEmail,
-            store_address: siteSettings.company_address || '1/47, Perumal Kovil Street, Madampakkam, Guduvancheri'
-          }
-        });
-
-        const ejsOptions = {
-          hostname: 'api.emailjs.com',
-          port: 443,
-          path: '/api/v1.0/email/send',
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(ejsPayload),
-            'Origin': 'https://sivamedicals.vercel.app'
-          }
-        };
-
-        const ejsReq = https.request(ejsOptions, (ejsRes) => {
-          let ejsBody = '';
-          ejsRes.on('data', (c) => { ejsBody += c; });
-          ejsRes.on('end', () => {
-            console.log(`Customer auto-reply dispatched to ${email} (Status: ${ejsRes.statusCode})`);
-          });
-        });
-        ejsReq.on('error', (e) => console.warn('EmailJS error:', e.message));
-        ejsReq.write(ejsPayload);
-        ejsReq.end();
-      } catch (e) {}
-    }
 
     res.json({
       success: true,
