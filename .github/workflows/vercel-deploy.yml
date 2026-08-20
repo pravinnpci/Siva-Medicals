@@ -32,7 +32,6 @@ jobs:
         run: |
           vercel deploy --prod --yes \
             --token="${{ secrets.SIVA_VERCEL_TOKEN || secrets.VERCEL_TOKEN }}" \
-            --scope="${{ secrets.SIVA_VERCEL_ORG_ID || secrets.VERCEL_ORG_ID || 'team_3hlRASIx1p3qCFTRNKRJ2wgu' }}" \
             --env SIVA_DATABASE_URL="${{ secrets.SIVA_DATABASE_URL || 'postgresql://postgres.vdccpnmlnppqdxgdhuok:siva-medicals01@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres' }}" \
             --env SIVA_SUPABASE_URL="${{ secrets.SIVA_SUPABASE_URL || 'https://vdccpnmlnppqdxgdhuok.supabase.co' }}" \
             --env SIVA_SUPABASE_ANON_KEY="${{ secrets.SIVA_SUPABASE_ANON_KEY || 'sb_publishable_d8eFggqr9eQ3aYPIhyZQxA_DxbgPpI9' }}" \
