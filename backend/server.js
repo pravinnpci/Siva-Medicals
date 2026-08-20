@@ -8,7 +8,6 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
-const twilio = require('twilio');
 const cors = require('cors');
 
 const app = express();
@@ -97,18 +96,6 @@ try {
           uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
-        CREATE TABLE IF NOT EXISTS whatsapp_messages (
-          id SERIAL PRIMARY KEY,
-          from_number VARCHAR(20) NOT NULL,
-          to_number VARCHAR(20) NOT NULL,
-          message_body TEXT NOT NULL,
-          message_type VARCHAR(20) DEFAULT 'text',
-          direction VARCHAR(10) DEFAULT 'inbound',
-          status VARCHAR(20) DEFAULT 'received',
-          received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          twilio_sid VARCHAR(50)
-        );
-
         CREATE TABLE IF NOT EXISTS site_settings (
           key VARCHAR(50) PRIMARY KEY,
           value TEXT NOT NULL,
@@ -168,24 +155,7 @@ try {
 }
 
 // ========================================
-// 2. TWILIO WHATSAPP CLIENT
-// ========================================
-let twilioClient = null;
-const twilioSid = process.env.SIVA_TWILIO_ACCOUNT_SID;
-const twilioAuth = process.env.SIVA_TWILIO_AUTH_TOKEN;
-const twilioWhatsappFrom = process.env.SIVA_TWILIO_WHATSAPP_NUMBER || '+14155238886';
-
-if (twilioSid && twilioAuth) {
-  try {
-    twilioClient = twilio(twilioSid, twilioAuth);
-    console.log('Twilio client initialized');
-  } catch (e) {
-    console.warn('Twilio init error:', e.message);
-  }
-}
-
-// ========================================
-// 3. HELPER FUNCTIONS
+// 2. HELPER FUNCTIONS
 // ========================================
 async function getSiteSettings() {
   const defaults = {
@@ -211,17 +181,8 @@ async function getSiteSettings() {
   }
 }
 
-function formatWhatsAppNumber(rawNumber) {
-  if (!rawNumber) return null;
-  let cleaned = rawNumber.toString().trim().replace(/[^0-9+]/g, '');
-  if (cleaned.startsWith('whatsapp:')) cleaned = cleaned.replace('whatsapp:', '');
-  if (cleaned.startsWith('+')) return `whatsapp:${cleaned}`;
-  if (cleaned.length === 10) return `whatsapp:+91${cleaned}`;
-  return `whatsapp:+${cleaned}`;
-}
-
 // ========================================
-// 4. MIDDLEWARES & STORAGE
+// 3. MIDDLEWARES & STORAGE
 // ========================================
 app.set('trust proxy', 1);
 
@@ -289,7 +250,7 @@ function requireAuth(req, res, next) {
 }
 
 // ========================================
-// 5. PUBLIC API ROUTES
+// 4. PUBLIC API ROUTES
 // ========================================
 
 app.get('/api/settings', async (req, res) => {
@@ -397,6 +358,7 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
             category: category ? category.replace(/_/g, ' ').toUpperCase() : 'GENERAL',
             message: message,
             address: address,
+            prescription_url: fullPrescriptionUrl,
             store_name: 'Siva Medicals',
             store_phone: sitePhone,
             store_email: companyEmail,
@@ -429,35 +391,11 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
       } catch (e) {}
     }
 
-    // C. Twilio WhatsApp notification
-    if (twilioClient) {
-      const whatsappFrom = twilioWhatsappFrom || '+14155238886';
-      const sender = formatWhatsAppNumber(whatsappFrom);
-      const ownerRecipient = formatWhatsAppNumber(siteSettings.company_whatsapp || '9952930484');
-      const customerRecipient = formatWhatsAppNumber(phone);
-
-      try {
-        const ownerBody = `*Siva Medicals - New Contact Request*\n\n` +
-          `*Name:* ${name}\n` +
-          `*Email:* ${email}\n` +
-          `*Phone:* ${phone}\n` +
-          `*Category:* ${category.replace(/_/g, ' ')}\n` +
-          `*Address:* ${address}\n` +
-          `*Message:* ${message}\n\n` +
-          `${prescriptionPath ? `*Prescription Link:*\n${req.protocol}://${req.get('host')}${prescriptionPath}` : '*Prescription:* None'}`;
-
-        await twilioClient.messages.create({ from: sender, to: ownerRecipient, body: ownerBody });
-      } catch (e) {}
-
-      try {
-        const customerBody = `Hello ${name}, thank you for contacting Siva Medicals. We have received your ${category.replace(/_/g, ' ')} request and will respond shortly.`;
-        await twilioClient.messages.create({ from: sender, to: customerRecipient, body: customerBody });
-      } catch (e) {}
-    }
-
     res.json({
       success: true,
       message: 'Request submitted successfully!',
+      prescriptionPath: prescriptionPath,
+      prescriptionUrl: fullPrescriptionUrl !== 'None' ? fullPrescriptionUrl : null,
       email: { status: 'sent', recipient: companyEmail }
     });
   } catch (error) {
@@ -467,7 +405,7 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
 });
 
 // ========================================
-// 6. ADMIN PANEL & DELETION ROUTES
+// 5. ADMIN PANEL & DELETION ROUTES
 // ========================================
 
 app.get('/admin/login', (req, res) => {
@@ -513,15 +451,14 @@ app.get('/admin/dashboard', requireAuth, async (req, res) => {
   try {
     let stats = { totalContacts: 0, totalFiles: 0, totalMessages: 0 };
     if (pool) {
-      const [contactsRes, filesRes, waRes] = await Promise.all([
+      const [contactsRes, filesRes] = await Promise.all([
         pool.query('SELECT COUNT(*) as count FROM contact_submissions').catch(() => ({ rows: [{ count: 0 }] })),
-        pool.query('SELECT COUNT(*) as count FROM file_uploads').catch(() => ({ rows: [{ count: 0 }] })),
-        pool.query('SELECT COUNT(*) as count FROM whatsapp_messages WHERE direction = $1', ['inbound']).catch(() => ({ rows: [{ count: 0 }] }))
+        pool.query('SELECT COUNT(*) as count FROM file_uploads').catch(() => ({ rows: [{ count: 0 }] }))
       ]);
       stats = {
         totalContacts: contactsRes.rows[0].count,
         totalFiles: filesRes.rows[0].count,
-        totalMessages: waRes.rows[0].count
+        totalMessages: contactsRes.rows[0].count
       };
     }
     res.render('admin/dashboard', { stats, user: req.session, dbAvailable: !!pool });
@@ -618,15 +555,6 @@ app.post('/admin/files/delete-by-name', requireAuth, async (req, res) => {
     res.json({ success: true, message: 'File permanently deleted from storage.' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.get('/admin/whatsapp', requireAuth, async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM whatsapp_messages ORDER BY received_at DESC');
-    res.render('admin/whatsapp', { messages: result.rows, user: req.session });
-  } catch (error) {
-    res.render('admin/whatsapp', { messages: [], user: req.session, error: error.message });
   }
 });
 

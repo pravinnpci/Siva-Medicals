@@ -8,6 +8,12 @@ let EMAILJS_CONFIG = {
   publicKey: 'cWmO8pjToTEkzUc5Z'
 };
 
+let SITE_SETTINGS = {
+  company_phone: '9952930484',
+  company_whatsapp: '9952930484',
+  company_email: 'sapravin46@gmail.com'
+};
+
 document.addEventListener('DOMContentLoaded', async function() {
   const contactForm = document.getElementById('contactForm');
   const categorySelect = document.getElementById('category');
@@ -20,6 +26,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (setRes.ok) {
       const setData = await setRes.json();
       if (setData.success && setData.settings) {
+        SITE_SETTINGS = { ...SITE_SETTINGS, ...setData.settings };
         if (setData.settings.emailjs_service_id) EMAILJS_CONFIG.serviceId = setData.settings.emailjs_service_id;
         if (setData.settings.emailjs_template_id) EMAILJS_CONFIG.templateId = setData.settings.emailjs_template_id;
         if (setData.settings.emailjs_public_key) EMAILJS_CONFIG.publicKey = setData.settings.emailjs_public_key;
@@ -126,6 +133,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
 
         const result = await response.json();
+        const prescriptionUrl = result.prescriptionUrl || (result.prescriptionPath ? (window.location.origin + result.prescriptionPath) : null);
 
         // 2. Dispatch Automated Customer Confirmation via EmailJS
         if (typeof emailjs !== 'undefined' && EMAILJS_CONFIG.serviceId && EMAILJS_CONFIG.templateId) {
@@ -144,9 +152,10 @@ document.addEventListener('DOMContentLoaded', async function() {
               category: category.replace(/_/g, ' ').toUpperCase(),
               message: message,
               address: address,
+              prescription_url: prescriptionUrl || 'None',
               store_name: 'Siva Medicals',
-              store_phone: '9952930484',
-              store_email: 'sapravin46@gmail.com',
+              store_phone: SITE_SETTINGS.company_phone || '9952930484',
+              store_email: SITE_SETTINGS.company_email || 'sapravin46@gmail.com',
               store_address: '1/47, Perumal Kovil Street, Madampakkam, Guduvancheri'
             });
             console.log('✉️ EmailJS customer confirmation sent successfully to', email);
@@ -156,18 +165,34 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
 
         if (response.ok && result.success) {
-          const cleanWaPhone = '9952930484';
-          const waOrderText = encodeURIComponent(`*Siva Medicals Order / Inquiry*\n\nName: ${name}\nPhone: ${phone}\nCategory: ${category}\nAddress: ${address}\nMessage: ${message}`);
-          const waUrl = `https://wa.me/91${cleanWaPhone}?text=${waOrderText}`;
+          const rawWa = SITE_SETTINGS.company_whatsapp || '9952930484';
+          const cleanWaPhone = rawWa.replace(/[^0-9]/g, '');
+          const phoneTarget = cleanWaPhone.length === 10 ? ('91' + cleanWaPhone) : cleanWaPhone;
+
+          let waText = `*🏥 SIVA MEDICALS - ORDER & PRESCRIPTION REQUEST*\n\n` +
+            `*Customer Name:* ${name}\n` +
+            `*Contact Phone:* ${phone}\n` +
+            `*Email:* ${email}\n` +
+            `*Category:* ${category.replace(/_/g, ' ').toUpperCase()}\n` +
+            `*Delivery Address:* ${address}\n` +
+            `*Order / Medicines:* ${message}\n`;
+
+          if (prescriptionUrl) {
+            waText += `\n*📷 Prescription File:* ${prescriptionUrl}`;
+          }
+
+          const waUrl = `https://wa.me/${phoneTarget}?text=${encodeURIComponent(waText)}`;
 
           let successHtml = `
-            <div class="p-3 bg-success bg-opacity-10 border border-success rounded">
-              <h5 class="text-success fw-bold mb-2"><i class="fas fa-check-circle me-2"></i> Request Submitted Successfully!</h5>
-              <p class="mb-1">✅ An automated confirmation email has been sent to <strong>${email}</strong>.</p>
-              <p class="mb-2">✅ Our pharmacy team has received your details and will contact you promptly at <strong>${phone}</strong>.</p>
-              <div class="mt-3 pt-2 border-top d-flex gap-2 flex-wrap">
-                <a href="${waUrl}" target="_blank" class="btn btn-success btn-sm fw-bold">
-                  <i class="fab fa-whatsapp me-2"></i> Chat with Pharmacy on WhatsApp
+            <div class="p-4 bg-success bg-opacity-10 border border-success rounded shadow-sm">
+              <h5 class="text-success fw-bold mb-3"><i class="fas fa-check-circle me-2"></i> Request & Prescription Submitted Successfully!</h5>
+              <p class="mb-1 text-dark">✅ An automated confirmation email has been dispatched to <strong>${email}</strong>.</p>
+              <p class="mb-3 text-dark">✅ Our pharmacy team has received your order and will contact you promptly at <strong>${phone}</strong>.</p>
+              
+              <div class="p-3 bg-white border rounded mb-3">
+                <p class="small text-muted mb-2"><i class="fab fa-whatsapp text-success me-1"></i> Send your prescription and order details directly to the pharmacy pharmacist:</p>
+                <a href="${waUrl}" target="_blank" class="btn btn-success fw-bold w-100 py-2">
+                  <i class="fab fa-whatsapp fa-lg me-2"></i> Open & Chat on WhatsApp (with Prescription)
                 </a>
               </div>
             </div>
