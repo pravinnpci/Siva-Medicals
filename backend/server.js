@@ -192,6 +192,27 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Global Helper to format Indian Standard Time (IST - Asia/Kolkata)
+app.locals.formatIST = function(dateInput) {
+  if (!dateInput) return 'N/A';
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return String(dateInput);
+    return d.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+  } catch (e) {
+    return String(dateInput);
+  }
+};
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
@@ -301,7 +322,7 @@ app.post('/api/contact', upload.single('prescription'), async (req, res) => {
         Address: address,
         Message: message,
         Prescription_File: fullPrescriptionUrl,
-        Submitted_At: new Date().toLocaleString()
+        Submitted_At: (new Date()).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
       });
 
       const options = {

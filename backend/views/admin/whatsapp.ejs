@@ -157,7 +157,7 @@
                                             <%= message.direction %>
                                         </span>
                                         <small class="text-muted">
-                                            <%= new Date(message.received_at).toLocaleString() %>
+                                            <%= message.received_at ? (typeof formatIST === "function" ? formatIST(message.received_at) : new Date(message.received_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })) : "N/A" %>
                                         </small>
                                     </div>
                                 </div>

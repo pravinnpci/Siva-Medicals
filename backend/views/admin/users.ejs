@@ -131,7 +131,7 @@
                                             <% if (user.last_login) { %>
                                                 <p class="mb-1">
                                                     <strong><i class="fas fa-clock me-2"></i>Last Login:</strong>
-                                                    <%= new Date(user.last_login).toLocaleString() %>
+                                                    <%= user.last_login ? (typeof formatIST === "function" ? formatIST(user.last_login) : new Date(user.last_login).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })) : "Never" %>
                                                 </p>
                                             <% } else { %>
                                                 <p class="mb-1">
